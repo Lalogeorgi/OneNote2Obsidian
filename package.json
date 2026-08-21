@@ -1,0 +1,46 @@
+{
+  "name": "onenote2obsidian",
+  "version": "0.1.0",
+  "description": "High-fidelity spatial import and GPU rendering of Microsoft OneNote notebooks in Obsidian using PixiJS.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "node esbuild.config.mjs production",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm run build && npm test",
+    "lint": "eslint src/ --ext .ts",
+    "format": "prettier --write \"src/**/*.{ts,css,json}\""
+  },
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "onenote",
+    "pixijs",
+    "spatial-canvas",
+    "infinite-canvas",
+    "ink",
+    "graphics"
+  ],
+  "author": "OneNote2Obsidian Contributors",
+  "license": "MIT",
+  "dependencies": {
+    "dompurify": "^3.2.4",
+    "pixi.js": "^8.8.1",
+    "rbush": "^4.0.1"
+  },
+  "devDependencies": {
+    "@types/dompurify": "^3.2.0",
+    "@types/node": "^22.13.4",
+    "@types/rbush": "^4.0.0",
+    "builtin-modules": "^5.0.0",
+    "esbuild": "^0.25.0",
+    "jsdom": "^26.0.0",
+    "obsidian": "latest",
+    "prettier": "^3.5.1",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.6"
+  }
+}

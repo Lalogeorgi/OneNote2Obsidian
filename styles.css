@@ -1,0 +1,412 @@
+/* OneNote to Obsidian Spatial Engine Styles */
+
+.onenote-spatial-view-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--background-primary);
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 1. Navigation Header Bar */
+.onenote-nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 14px;
+  background-color: var(--background-secondary);
+  border-bottom: 1px solid var(--background-modifier-border);
+  z-index: 20;
+  height: 40px;
+  box-sizing: border-box;
+}
+
+.onenote-nav-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.onenote-nav-nb-badge {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background-color: var(--background-modifier-accent);
+  color: var(--text-accent);
+}
+
+.onenote-nav-provenance-pill {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background-color: var(--background-secondary-alt);
+  color: var(--text-muted);
+  border: 1px solid var(--background-modifier-border);
+}
+
+.onenote-nav-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.onenote-nav-page-select {
+  background-color: var(--background-primary);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+  max-width: 260px;
+}
+
+.onenote-nav-page-select:focus {
+  border-color: var(--interactive-accent);
+}
+
+/* 2. Canvas Host & Layer Wrappers */
+.onenote-canvas-host-wrapper {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.onenote-canvas-host {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+.onenote-dom-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none;
+  transform-origin: 0 0;
+  overflow: visible;
+}
+
+.onenote-outline-container {
+  position: absolute;
+  pointer-events: auto;
+  user-select: text;
+  font-family: var(--font-text);
+  color: var(--text-normal);
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+
+.onenote-outline-container a {
+  color: var(--text-accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.onenote-outline-container input[type="checkbox"] {
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+/* 3. Floating Spatial Glassmorphic Toolbar */
+.onenote-floating-toolbar {
+  position: absolute;
+  top: 52px;
+  left: 16px;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background-color: var(--background-secondary-alt);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 4px 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(8px);
+}
+
+.onenote-tool-btn,
+.onenote-btn,
+.onenote-btn-icon {
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  padding: 4px 10px;
+  color: var(--text-normal);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.onenote-btn-icon {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.onenote-tool-btn:hover,
+.onenote-btn:hover,
+.onenote-btn-icon:hover:not(:disabled) {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-accent);
+}
+
+.onenote-tool-btn.is-active {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.onenote-btn:disabled,
+.onenote-btn-icon:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.onenote-toolbar-divider {
+  width: 1px;
+  height: 18px;
+  background-color: var(--background-modifier-border);
+  margin: 0 3px;
+}
+
+/* 4. Bottom Right HUD Panel */
+.onenote-hud-panel {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  z-index: 25;
+  background-color: var(--background-secondary-alt);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-family: var(--font-monospace);
+  font-size: 11px;
+  color: var(--text-muted);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  pointer-events: auto;
+}
+
+/* 5. Diagnostics Drawer */
+.onenote-diagnostics-drawer {
+  position: absolute;
+  top: 40px;
+  right: 0;
+  width: 380px;
+  bottom: 0;
+  z-index: 30;
+  background-color: var(--background-primary);
+  border-left: 1px solid var(--background-modifier-border);
+  padding: 16px;
+  overflow-y: auto;
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.onenote-diagnostics-drawer.is-hidden {
+  display: none;
+}
+
+.onenote-diag-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding-bottom: 8px;
+}
+
+.onenote-diag-header h4 {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-normal);
+}
+
+.onenote-diag-stats {
+  font-family: var(--font-monospace);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  background-color: var(--background-secondary);
+  padding: 10px;
+  border-radius: 6px;
+}
+
+.onenote-diag-logs h5 {
+  margin: 0 0 6px 0;
+  font-size: 12px;
+  color: var(--text-normal);
+}
+
+.onenote-log-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  background-color: var(--background-secondary);
+}
+
+.onenote-log-badge {
+  font-family: var(--font-monospace);
+  font-weight: bold;
+  font-size: 10px;
+}
+
+.onenote-log-item.is-warning .onenote-log-badge {
+  color: var(--text-warning);
+}
+
+.onenote-log-item.is-error .onenote-log-badge {
+  color: var(--text-error);
+}
+
+.onenote-log-empty {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* 6. Loading Overlay */
+.onenote-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.onenote-loading-overlay.is-hidden {
+  display: none;
+}
+
+.onenote-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--interactive-accent);
+  border-radius: 50%;
+  animation: onenote-spin 0.8s linear infinite;
+}
+
+.onenote-loading-text {
+  font-size: 12px;
+  color: var(--text-on-accent);
+}
+
+@keyframes onenote-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 7. Inline Text Editor */
+.onenote-inline-text-editor {
+  background-color: var(--background-primary);
+  color: var(--text-normal);
+  border: 2px solid var(--interactive-accent);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-family: inherit;
+  line-height: 1.4;
+  outline: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  resize: both;
+  box-sizing: border-box;
+}
+
+/* 8. Import Progress Modal & Recovery UI */
+.onenote-import-modal {
+  padding: 16px;
+}
+
+.onenote-import-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.onenote-progress-stage {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-normal);
+}
+
+.onenote-progress-bar-wrapper {
+  width: 100%;
+  height: 12px;
+  background-color: var(--background-modifier-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.onenote-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--interactive-accent), #60a5fa);
+  transition: width 0.2s ease;
+  border-radius: 6px;
+}
+
+.onenote-progress-text {
+  font-size: 12px;
+  font-family: var(--font-monospace);
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.onenote-progress-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.onenote-import-error {
+  margin-top: 14px;
+  padding: 12px;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--text-error);
+  border-radius: 8px;
+}
+
+.onenote-import-error h3 {
+  margin-top: 0;
+  color: var(--text-error);
+}
+
+.onenote-error-msg {
+  font-family: var(--font-monospace);
+  font-size: 12px;
+  color: var(--text-warning);
+  background-color: var(--background-primary);
+  padding: 8px;
+  border-radius: 4px;
+}
+
