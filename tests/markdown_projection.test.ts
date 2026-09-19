@@ -26,8 +26,8 @@ describe("Semantic Markdown Projector", () => {
     expect(markdown).toContain('spatial_sidecar: "Project Strategy.onecanvas.json"');
     expect(markdown).toContain("  - onenote-import");
     expect(markdown).toContain("  - quarterly");
-    expect(markdown).toContain("> [!spatial]+ OneNote Spatial Canvas");
-    expect(markdown).toContain("[Open in OneNote Spatial Viewer](obsidian://onenote-spatial?page=p1)");
+    expect(markdown).toContain("> [!spatial]+ Canvas");
+    expect(markdown).toContain("[Open in Canvas](obsidian://onenote-spatial?page=p1&sidecar=Project%20Strategy.onecanvas.json)");
     expect(markdown).toContain("# Project Strategy");
   });
 

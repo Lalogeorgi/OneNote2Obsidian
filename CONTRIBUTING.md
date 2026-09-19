@@ -48,8 +48,8 @@ npm run check
 ## 🧪 Testing Guidelines
 
 - Every new parser capability, command, or gizmo feature must be accompanied by unit tests in `tests/`.
-- Run `npm test` to execute the full 34-suite automated test matrix before creating a Pull Request.
-- **Do not commit real, private, or copyrighted OneNote files as test fixtures.** Use synthetic binary fixtures created with `BinaryReader` and `IdGenerator`.
+- Run `npm test` to execute the full 67-suite automated test matrix (340 tests) before creating a Pull Request.
+- **Do not commit real, private, or copyrighted OneNote files as test fixtures.** Use synthetic binary fixtures created with `BinaryFixtureGenerator` and `AdversarialCabGenerator`.
 
 ---
 

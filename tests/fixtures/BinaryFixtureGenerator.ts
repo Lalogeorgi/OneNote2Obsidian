@@ -111,7 +111,7 @@ export class BinaryFixtureGenerator {
     view.setUint32(cur, (node4Size << 10) | 0x010, true);
     cur += 4;
     view.setUint32(cur, 0x00000003, true); // compactId 3
-    view.setUint32(cur + 4, 0x00060012, true); // jcidImage
+    view.setUint32(cur + 4, 0x00060011, true); // jcidImage
     view.setUint16(cur + 8, 3, true); // 3 properties
     view.setUint32(cur + 10, (0x04 << 26) | 0x00010009, true);
     view.setUint32(cur + 14, 400, true); // X = 400 pt

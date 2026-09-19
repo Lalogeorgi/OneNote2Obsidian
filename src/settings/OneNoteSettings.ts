@@ -12,16 +12,20 @@ export interface OneNotePluginSettings {
   enableHighDpi: boolean;
   enableTextDomOverlay: boolean;
   customTags: string;
+  defaultStickyNoteColor: string;
+  defaultStickyNoteOpacity: number;
 }
 
 export const DEFAULT_SETTINGS: OneNotePluginSettings = {
   defaultViewMode: "spatial",
-  rootImportFolder: "OneNote",
+  rootImportFolder: "OneNote2Obsidian",
   attachmentFolder: "attachments",
   flattenHierarchy: false,
   autoOpenSpatialOnMarkdownOpen: false,
   duplicateStrategy: "skip",
   enableHighDpi: true,
   enableTextDomOverlay: true,
-  customTags: "onenote-import",
+  customTags: "import",
+  defaultStickyNoteColor: "yellow",
+  defaultStickyNoteOpacity: 1.0,
 };

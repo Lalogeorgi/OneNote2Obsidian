@@ -20,12 +20,7 @@ export class Rectangle implements Rect2D {
     public readonly height: number
   ) {}
 
-  public static create(
-    x: number,
-    y: number,
-    width: number,
-    height: number
-  ): Rectangle {
+  public static create(x: number, y: number, width: number, height: number): Rectangle {
     return new Rectangle(x, y, Math.max(0, width), Math.max(0, height));
   }
 
@@ -58,12 +53,7 @@ export class Rectangle implements Rect2D {
   }
 
   public containsPoint(p: Point2D): boolean {
-    return (
-      p.x >= this.minX &&
-      p.x <= this.maxX &&
-      p.y >= this.minY &&
-      p.y <= this.maxY
-    );
+    return p.x >= this.minX && p.x <= this.maxX && p.y >= this.minY && p.y <= this.maxY;
   }
 
   public intersects(other: Rect2D): boolean {

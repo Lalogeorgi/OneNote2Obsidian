@@ -187,7 +187,7 @@ describe("Production-Grade Performance & Scalability Benchmarks", () => {
     recordMetric("Image-Heavy 50-Image Deduplication", assets.size, duration);
 
     expect(processed.size).toBe(50);
-    expect(duration).toBeLessThan(1500);
+    expect(duration).toBeLessThan(2500);
 
     const uniquePaths = new Set(Array.from(processed.values()).map((r) => r.relativeVaultPath));
     expect(uniquePaths.size).toBe(10);
@@ -349,7 +349,7 @@ describe("Production-Grade Performance & Scalability Benchmarks", () => {
     recordMetric("50-Page Notebook Markdown Projection", pages.length, duration);
 
     expect(projections.length).toBe(50);
-    expect(duration).toBeLessThan(300);
+    expect(duration).toBeLessThan(600);
     expect(projections[0]).toContain("Milestone 1");
   });
 

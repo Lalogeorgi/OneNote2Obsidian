@@ -1,0 +1,58 @@
+name: Release Plugin
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript Strict Typecheck
+        run: npm run typecheck
+
+      - name: ESLint Code Quality Verification
+        run: npm run lint
+
+      - name: Prettier Code Style Verification
+        run: npx prettier --check "src/**/*.{ts,css,json}"
+
+      - name: Production ESBuild Bundle
+        run: npm run build
+
+      - name: Run Vitest Test Suites
+        run: npm test
+
+      - name: Verify Distribution Artifacts
+        run: |
+          test -f main.js
+          test -f styles.css
+          test -f manifest.json
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            main.js
+            manifest.json
+            styles.css
+          generate_release_notes: true
+          draft: false
+          prerelease: false

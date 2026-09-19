@@ -5,7 +5,7 @@ import { Rectangle, Rect2D } from "./Rectangle";
  */
 export interface SpatialBounds extends Rect2D {
   readonly rotation?: number; // In degrees (0 - 360)
-  readonly zIndex: number;    // Global stacking order index
+  readonly zIndex: number; // Global stacking order index
 }
 
 /**

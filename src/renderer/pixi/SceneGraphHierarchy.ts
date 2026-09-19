@@ -23,11 +23,15 @@ export class SceneGraphHierarchy {
   public readonly pageContainer: Container;
 
   public readonly backgroundLayer: Container;
+  public readonly spatialGroupsLayer: Container;
   public readonly imagesLayer: Container;
   public readonly bottomInkLayer: Container;
   public readonly tablesLayer: Container;
   public readonly shapesLayer: Container;
   public readonly textLayer: Container;
+  public readonly stickyNotesLayer: Container;
+  public readonly annotationsLayer: Container;
+  public readonly spatialLinksLayer: Container;
   public readonly topInkLayer: Container;
   public readonly attachmentsLayer: Container;
   public readonly selectionLayer: Container;
@@ -42,6 +46,9 @@ export class SceneGraphHierarchy {
 
     this.backgroundLayer = new Container();
     this.backgroundLayer.label = "BackgroundLayer";
+
+    this.spatialGroupsLayer = new Container();
+    this.spatialGroupsLayer.label = "SpatialGroupsLayer";
 
     this.imagesLayer = new Container();
     this.imagesLayer.label = "ImagesLayer";
@@ -58,6 +65,15 @@ export class SceneGraphHierarchy {
     this.textLayer = new Container();
     this.textLayer.label = "TextLayer";
 
+    this.stickyNotesLayer = new Container();
+    this.stickyNotesLayer.label = "StickyNotesLayer";
+
+    this.annotationsLayer = new Container();
+    this.annotationsLayer.label = "AnnotationsLayer";
+
+    this.spatialLinksLayer = new Container();
+    this.spatialLinksLayer.label = "SpatialLinksLayer";
+
     this.topInkLayer = new Container();
     this.topInkLayer.label = "TopInkLayer";
 
@@ -73,11 +89,15 @@ export class SceneGraphHierarchy {
     // Build hierarchy in strict visual order (bottom to top)
     this.pageContainer.addChild(
       this.backgroundLayer,
+      this.spatialGroupsLayer,
       this.imagesLayer,
       this.bottomInkLayer,
       this.tablesLayer,
       this.shapesLayer,
       this.textLayer,
+      this.stickyNotesLayer,
+      this.annotationsLayer,
+      this.spatialLinksLayer,
       this.topInkLayer,
       this.attachmentsLayer,
       this.selectionLayer,
@@ -102,6 +122,7 @@ export class SceneGraphHierarchy {
     this.tablesLayer.removeChildren();
     this.shapesLayer.removeChildren();
     this.textLayer.removeChildren();
+    this.stickyNotesLayer.removeChildren();
     this.topInkLayer.removeChildren();
     this.attachmentsLayer.removeChildren();
     this.selectionLayer.removeChildren();

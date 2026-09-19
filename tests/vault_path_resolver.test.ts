@@ -68,8 +68,23 @@ describe("Vault Path Resolver & Hierarchy Rules", () => {
       pageTitle: "Daily Log",
     });
 
-    expect(res1.markdownPath).toBe("OneNote/Notebook/Section/Daily Log.md");
-    expect(res2.markdownPath).toBe("OneNote/Notebook/Section/Daily Log (1).md");
-    expect(res3.markdownPath).toBe("OneNote/Notebook/Section/Daily Log (2).md");
+    expect(res1.markdownPath).toBe("OneNote2Obsidian/Notebook/Section/Daily Log.md");
+    expect(res2.markdownPath).toBe("OneNote2Obsidian/Notebook/Section/Daily Log (1).md");
+    expect(res3.markdownPath).toBe("OneNote2Obsidian/Notebook/Section/Daily Log (2).md");
+  });
+
+  it("deduplicates folder hierarchy for single-section imports where notebook matches section", () => {
+    const resolver = new VaultPathResolver();
+
+    const res = resolver.resolvePagePaths({
+      notebookTitle: "App - Comunidad",
+      sectionName: "App - Comunidad",
+      pageTitle: "Comunidad de práctica de IA",
+    });
+
+    // Should create a single section folder "OneNote2Obsidian/App - Comunidad", NOT "OneNote2Obsidian/App - Comunidad/App - Comunidad"
+    expect(res.markdownPath).toBe("OneNote2Obsidian/App - Comunidad/Comunidad de práctica de IA.md");
+    expect(res.sidecarPath).toBe("OneNote2Obsidian/App - Comunidad/Comunidad de práctica de IA.onecanvas.json");
+    expect(res.attachmentFolderPath).toBe("OneNote2Obsidian/App - Comunidad/attachments");
   });
 });

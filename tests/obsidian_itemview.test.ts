@@ -110,15 +110,20 @@ describe("Obsidian Custom OneNoteItemView Lifecycle & Navigation", () => {
     const root = view.containerEl.querySelector(".onenote-spatial-view-root");
     expect(root).not.toBeNull();
 
-    // Check Navigation Bar
-    const navBar = view.containerEl.querySelector(".onenote-nav-bar");
-    expect(navBar).not.toBeNull();
+    // Verify Canvas Host occupies root
+    const canvasHost = view.containerEl.querySelector(".onenote-canvas-host-wrapper");
+    expect(canvasHost).not.toBeNull();
 
-    // Check Floating Toolbar
+    // Verify Empty State Prompt is present initially
+    const emptyState = view.containerEl.querySelector(".onenote-empty-state");
+    expect(emptyState).not.toBeNull();
+    expect(emptyState?.classList.contains("is-hidden")).toBe(false);
+
+    // Verify Floating Toolbar (Select, Pan, Zoom)
     const toolbar = view.containerEl.querySelector(".onenote-floating-toolbar");
     expect(toolbar).not.toBeNull();
 
-    // Check HUD
+    // Verify HUD
     const hud = view.containerEl.querySelector(".onenote-hud-panel");
     expect(hud).not.toBeNull();
 
@@ -128,19 +133,26 @@ describe("Obsidian Custom OneNoteItemView Lifecycle & Navigation", () => {
     }
   });
 
-  it("loads a multi-page notebook and switches pages via navigation", async () => {
+  it("loads a page into spatial view and updates display text and empty state", async () => {
     const leaf = createMockLeaf();
     const view = new OneNoteItemView(leaf);
     await view.onOpen();
 
     const notebook = createMockNotebook();
-    view.loadNotebook(notebook);
+    const page1 = notebook.sections[0]!.pages[0]!;
+    const page2 = notebook.sections[0]!.pages[1]!;
+
+    view.loadPage(page1);
 
     // Verify Display text reflects active page
     expect(view.getDisplayText()).toContain("Page 1: Overview");
 
-    // Switch to page 2
-    view.loadPageById(notebook.sections[0]!.pages[1]!.id);
+    // Empty state should be hidden after loading page
+    const emptyState = view.containerEl.querySelector(".onenote-empty-state");
+    expect(emptyState?.classList.contains("is-hidden")).toBe(true);
+
+    // Load page 2
+    view.loadPage(page2);
     expect(view.getDisplayText()).toContain("Page 2: Architecture");
 
     await view.onClose();

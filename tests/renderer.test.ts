@@ -75,7 +75,7 @@ describe("PixiJS Rendering Engine & Resource Lifecycle", () => {
       const hierarchy = new SceneGraphHierarchy();
 
       expect(hierarchy.rootContainer.children.length).toBe(1); // pageContainer
-      expect(hierarchy.pageContainer.children.length).toBe(10); // 10 layer containers
+      expect(hierarchy.pageContainer.children.length).toBe(14); // 14 layer containers (including stickyNotesLayer, spatialLinksLayer, spatialGroupsLayer, annotationsLayer)
 
       const transform: ViewportTransform = { x: 50, y: 80, scale: 1.5 };
       hierarchy.updateViewport(transform);

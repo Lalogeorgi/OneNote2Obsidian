@@ -7,7 +7,7 @@ export interface VaultPathConfig {
 
 export interface PagePathResolution {
   readonly markdownPath: string; // e.g. "OneNote/My Notebook/General/Overview.md"
-  readonly sidecarPath: string;  // e.g. "OneNote/My Notebook/General/Overview.onecanvas.json"
+  readonly sidecarPath: string; // e.g. "OneNote/My Notebook/General/Overview.onecanvas.json"
   readonly relativeSidecarFromMarkdown: string; // e.g. "Overview.onecanvas.json"
   readonly attachmentFolderPath: string; // e.g. "OneNote/My Notebook/attachments"
 }
@@ -18,7 +18,7 @@ export class VaultPathResolver {
 
   constructor(config: VaultPathConfig = {}) {
     this.config = {
-      rootImportFolder: config.rootImportFolder ?? "OneNote",
+      rootImportFolder: config.rootImportFolder ?? "OneNote2Obsidian",
       attachmentFolder: config.attachmentFolder ?? "attachments",
       flattenHierarchy: config.flattenHierarchy ?? false,
       sidecarExtension: config.sidecarExtension ?? ".onecanvas.json",
@@ -41,9 +41,28 @@ export class VaultPathResolver {
 
     // Handle Windows reserved device names
     const reserved = new Set([
-      "CON", "PRN", "AUX", "NUL",
-      "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
-      "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+      "CON",
+      "PRN",
+      "AUX",
+      "NUL",
+      "COM1",
+      "COM2",
+      "COM3",
+      "COM4",
+      "COM5",
+      "COM6",
+      "COM7",
+      "COM8",
+      "COM9",
+      "LPT1",
+      "LPT2",
+      "LPT3",
+      "LPT4",
+      "LPT5",
+      "LPT6",
+      "LPT7",
+      "LPT8",
+      "LPT9",
     ]);
 
     if (reserved.has(sanitized.toUpperCase())) {
@@ -67,19 +86,25 @@ export class VaultPathResolver {
     const sec = this.sanitizeSegment(params.sectionName);
     const page = this.sanitizeSegment(params.pageTitle);
 
-    const groupSegments = (params.sectionGroupNames || []).map((g) =>
-      this.sanitizeSegment(g)
-    );
+    const groupSegments = (params.sectionGroupNames || []).map((g) => this.sanitizeSegment(g));
+
+    // Single section import: if notebook title is identical to section name and there are no section groups,
+    // do not create a redundant nested subfolder (e.g. use "Imports/Section", not "Imports/Section/Section").
+    const isSingleSectionImport = groupSegments.length === 0 && (!nb || nb === sec);
 
     let folderPath: string;
     let baseFileName: string;
 
     if (this.config.flattenHierarchy) {
       folderPath = root ? `${root}/${nb}` : nb;
-      const prefixParts = [nb, ...groupSegments, sec].filter(Boolean);
+      const prefixParts = isSingleSectionImport
+        ? [sec]
+        : [nb, ...groupSegments, sec].filter(Boolean);
       baseFileName = `${prefixParts.join(" - ")} - ${page}`;
     } else {
-      const parts = [root, nb, ...groupSegments, sec].filter(Boolean);
+      const parts = isSingleSectionImport
+        ? [root, sec].filter(Boolean)
+        : [root, nb, ...groupSegments, sec].filter(Boolean);
       folderPath = parts.join("/");
       baseFileName = page;
     }
@@ -89,9 +114,10 @@ export class VaultPathResolver {
     const markdownPath = `${folderPath}/${uniqueBase}.md`;
     const sidecarPath = `${folderPath}/${uniqueBase}${this.config.sidecarExtension}`;
     const relativeSidecarFromMarkdown = `${uniqueBase}${this.config.sidecarExtension}`;
+    const targetFolderSegment = isSingleSectionImport ? sec : nb;
     const attachmentFolderPath = root
-      ? `${root}/${nb}/${this.config.attachmentFolder}`
-      : `${nb}/${this.config.attachmentFolder}`;
+      ? `${root}/${targetFolderSegment}/${this.config.attachmentFolder}`
+      : `${targetFolderSegment}/${this.config.attachmentFolder}`;
 
     this.existingPaths.add(markdownPath);
     this.existingPaths.add(sidecarPath);

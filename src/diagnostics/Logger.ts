@@ -102,11 +102,7 @@ export class StructuredLogger {
     return this.log("fatal", code, message, context, error);
   }
 
-  public recordMetric(
-    name: string,
-    durationMs: number,
-    details?: Record<string, unknown>
-  ): void {
+  public recordMetric(name: string, durationMs: number, details?: Record<string, unknown>): void {
     const metric: PerformanceMetric = {
       name,
       durationMs,
@@ -126,11 +122,7 @@ export class StructuredLogger {
     }
   }
 
-  public time<T>(
-    name: string,
-    fn: () => T,
-    details?: Record<string, unknown>
-  ): T {
+  public time<T>(name: string, fn: () => T, details?: Record<string, unknown>): T {
     const start = performance.now();
     try {
       return fn();

@@ -38,17 +38,11 @@ export class Point implements Point2D {
   }
 
   public lerp(target: Point2D, t: number): Point {
-    return new Point(
-      this.x + (target.x - this.x) * t,
-      this.y + (target.y - this.y) * t
-    );
+    return new Point(this.x + (target.x - this.x) * t, this.y + (target.y - this.y) * t);
   }
 
   public equals(other: Point2D, epsilon = 1e-6): boolean {
-    return (
-      Math.abs(this.x - other.x) <= epsilon &&
-      Math.abs(this.y - other.y) <= epsilon
-    );
+    return Math.abs(this.x - other.x) <= epsilon && Math.abs(this.y - other.y) <= epsilon;
   }
 
   public toJSON(): Point2D {

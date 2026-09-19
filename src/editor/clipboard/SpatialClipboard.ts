@@ -10,7 +10,16 @@ export interface SerializedClipItem {
   layer: PageSceneNode["layer"];
   bounds: PageSceneNode["bounds"];
   zIndex: number;
+  opacity?: number;
   element: CanonicalElement;
+  renderedHtml?: string;
+  title?: string;
+  color?: string;
+  headerColor?: string;
+  textColor?: string;
+  borderColor?: string;
+  isPinned?: boolean;
+  isFolded?: boolean;
 }
 
 export class SpatialClipboard {
@@ -21,7 +30,16 @@ export class SpatialClipboard {
       layer: n.layer,
       bounds: { ...n.bounds },
       zIndex: n.zIndex,
+      opacity: n.opacity,
       element: JSON.parse(JSON.stringify(n.element)),
+      renderedHtml: (n as any).renderedHtml,
+      title: (n as any).title,
+      color: (n as any).color,
+      headerColor: (n as any).headerColor,
+      textColor: (n as any).textColor,
+      borderColor: (n as any).borderColor,
+      isPinned: (n as any).isPinned,
+      isFolded: (n as any).isFolded,
     }));
   }
 
@@ -82,6 +100,7 @@ export class SpatialClipboard {
         aabb: Rectangle.create(newBounds.x, newBounds.y, newBounds.width, newBounds.height),
         zIndex: newBounds.zIndex,
         visible: true,
+        opacity: item.opacity,
         element: clonedElement,
       } as PageSceneNode;
 

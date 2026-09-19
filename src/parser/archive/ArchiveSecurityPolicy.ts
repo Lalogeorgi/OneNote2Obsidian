@@ -14,7 +14,7 @@ export interface ArchiveSecurityPolicy {
 export const DEFAULT_SECURITY_POLICY: ArchiveSecurityPolicy = {
   maxFiles: 5000,
   maxTotalBytes: 10 * 1024 * 1024 * 1024, // 10 GB
-  maxFileBytes: 2 * 1024 * 1024 * 1024,   // 2 GB
+  maxFileBytes: 2 * 1024 * 1024 * 1024, // 2 GB
   maxCompressionRatio: 100,
   maxNestingDepth: 16,
 };

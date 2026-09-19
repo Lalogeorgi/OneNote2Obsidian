@@ -177,11 +177,13 @@ export class SpatialIndex {
     const hits: PageSceneNode[] = [];
 
     for (const item of pool) {
+      const isInk = item.node.layer === "topInk" || item.node.layer === "bottomInk";
+      const slop = isInk ? 8 : 0;
       if (
-        point.x >= item.minX &&
-        point.x <= item.maxX &&
-        point.y >= item.minY &&
-        point.y <= item.maxY
+        point.x >= item.minX - slop &&
+        point.x <= item.maxX + slop &&
+        point.y >= item.minY - slop &&
+        point.y <= item.maxY + slop
       ) {
         hits.push(item.node);
       }

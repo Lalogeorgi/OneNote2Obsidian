@@ -1,6 +1,10 @@
 import { DiagnosticCode } from "../../diagnostics/DiagnosticTypes";
 import { logger } from "../../diagnostics/Logger";
-import { CanonicalNotebook, CanonicalSection, CanonicalSectionGroup } from "../../model/CanonicalNotebook";
+import {
+  CanonicalNotebook,
+  CanonicalSection,
+  CanonicalSectionGroup,
+} from "../../model/CanonicalNotebook";
 import { IdGenerator } from "../../model/Ids";
 import { IPlatformAdapter } from "../../platform/IPlatformAdapter";
 import { PlatformManager } from "../../platform/PlatformManager";
@@ -10,6 +14,7 @@ import { ProgressReporter, ProgressStage } from "../Progress";
 import { CabExtractor } from "../binary/CabExtractor";
 import { FormatDetector } from "../binary/FormatDetector";
 import { ArchiveSecurityPolicy, DEFAULT_SECURITY_POLICY } from "./ArchiveSecurityPolicy";
+import { PARSER_METRICS_DEFAULTS } from "../../constants/ParserConstants";
 
 export interface OnepkgImportOptions extends ParserOptions {
   readonly stagingDirectoryPrefix?: string;
@@ -34,7 +39,11 @@ export class OnepkgImporter {
     cancellationToken?: CancellationToken
   ): Promise<CanonicalNotebook> {
     cancellationToken?.throwIfCancelled();
-    progress?.report(ProgressStage.READING_FILE, "Validating OneNote package archive (.onepkg)...", 5);
+    progress?.report(
+      ProgressStage.READING_FILE,
+      "Validating OneNote package archive (.onepkg)...",
+      5
+    );
 
     // 1. Sniff & Validate Container
     const validation = FormatDetector.detect(buffer);
@@ -46,16 +55,22 @@ export class OnepkgImporter {
     }
 
     const policy = options.securityPolicy || DEFAULT_SECURITY_POLICY;
-    const prefix = options.stagingDirectoryPrefix || "onenote-staging-";
+    const prefix = options.stagingDirectoryPrefix || PARSER_METRICS_DEFAULTS.STAGING_DIR_PREFIX;
 
     // 2. Allocate Isolated Staging Directory
     let stagingDir = "";
     try {
       stagingDir = await this.platformAdapter.createStagingDirectory(prefix);
-      logger.info(DiagnosticCode.GENERAL_INFO, `Created isolated staging directory`, { stagingDir });
+      logger.info(DiagnosticCode.GENERAL_INFO, `Created isolated staging directory`, {
+        stagingDir,
+      });
 
       cancellationToken?.throwIfCancelled();
-      progress?.report(ProgressStage.EXTRACTING_CAB, "Decompressing package into isolated staging area...", 15);
+      progress?.report(
+        ProgressStage.EXTRACTING_CAB,
+        "Decompressing package into isolated staging area...",
+        15
+      );
 
       // 3. Extract to staging area with path sanitization and decompression bounds
       const stagedEntries = await CabExtractor.extractToStaging(
@@ -86,11 +101,15 @@ export class OnepkgImporter {
       // 5. Optional Atomic Publication to Vault Target
       if (options.targetVaultDir) {
         cancellationToken?.throwIfCancelled();
-        progress?.report(ProgressStage.PUBLISHING_VAULT, "Atomically publishing to Obsidian vault...", 90);
+        progress?.report(
+          ProgressStage.PUBLISHING_VAULT,
+          "Atomically publishing to Obsidian vault...",
+          90
+        );
         await this.platformAdapter.atomicPublish(stagingDir, options.targetVaultDir);
       }
 
-      progress?.report(ProgressStage.COMPLETE, "OneNote Package successfully ingested.", 100);
+      progress?.report(ProgressStage.COMPLETE, "Package successfully ingested.", 100);
       return notebook;
     } finally {
       // 6. Guaranteed Cleanup of Staging Directory
@@ -124,14 +143,21 @@ export class OnepkgImporter {
     const rootSections: CanonicalSection[] = [];
 
     // Check for root .onetoc2
-    const rootToc = files.find((f) => f.toLowerCase() === "onetoc2.onetoc2" || f.toLowerCase().endsWith(".onetoc2"));
+    const rootToc = files.find(
+      (f) => f.toLowerCase() === "onetoc2.onetoc2" || f.toLowerCase().endsWith(".onetoc2")
+    );
     let notebookTitle = "Imported Notebook";
 
     if (rootToc) {
       try {
         const tocPath = this.platformAdapter.joinPath(stagingDir, rootToc);
         const tocBuffer = await this.platformAdapter.readStagedFile(tocPath);
-        const parsedToc = await this.parserAdapter.parseTableOfContents(tocBuffer, options, undefined, cancellationToken);
+        const parsedToc = await this.parserAdapter.parseTableOfContents(
+          tocBuffer,
+          options,
+          undefined,
+          cancellationToken
+        );
         if (parsedToc.title) {
           notebookTitle = parsedToc.title;
         }
@@ -173,10 +199,20 @@ export class OnepkgImporter {
         ProgressStage.PARSING_OBJECT_SPACES,
         `Parsing section "${sectionName}" (${sectionsProcessed}/${totalSectionFiles})...`,
         pct,
-        { currentItem: sectionName, itemsProcessed: sectionsProcessed, totalItems: totalSectionFiles }
+        {
+          currentItem: sectionName,
+          itemsProcessed: sectionsProcessed,
+          totalItems: totalSectionFiles,
+        }
       );
 
-      const section = await this.parseStagedSection(stagingDir, relPath, sectionName, options, cancellationToken);
+      const section = await this.parseStagedSection(
+        stagingDir,
+        relPath,
+        sectionName,
+        options,
+        cancellationToken
+      );
       if (section) {
         rootSections.push(section);
       }
@@ -197,10 +233,20 @@ export class OnepkgImporter {
           ProgressStage.PARSING_OBJECT_SPACES,
           `Parsing section "${sectionName}" (${sectionsProcessed}/${totalSectionFiles})...`,
           pct,
-          { currentItem: sectionName, itemsProcessed: sectionsProcessed, totalItems: totalSectionFiles }
+          {
+            currentItem: sectionName,
+            itemsProcessed: sectionsProcessed,
+            totalItems: totalSectionFiles,
+          }
         );
 
-        const section = await this.parseStagedSection(stagingDir, relPath, sectionName, options, cancellationToken);
+        const section = await this.parseStagedSection(
+          stagingDir,
+          relPath,
+          sectionName,
+          options,
+          cancellationToken
+        );
         if (section) {
           groupSections.push(section);
         }
@@ -234,7 +280,12 @@ export class OnepkgImporter {
       const fullPath = this.platformAdapter.joinPath(stagingDir, relPath);
       const sectionBuffer = await this.platformAdapter.readStagedFile(fullPath);
 
-      const result = await this.parserAdapter.parseSection(sectionBuffer, options, undefined, cancellationToken);
+      const result = await this.parserAdapter.parseSection(
+        sectionBuffer,
+        options,
+        undefined,
+        cancellationToken
+      );
       if (!result.page) return null;
 
       return {

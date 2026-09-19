@@ -57,7 +57,7 @@ describe("OneNote Parser Adapter & Binary Integration", () => {
     const notebook = await adapter.parseTableOfContents(tocBuffer);
 
     expect(notebook).toBeDefined();
-    expect(notebook.title).toBe("OneNote Notebook");
+    expect(notebook.title).toBe("Notebook");
   });
 
   it("extracts and parses .onepkg Cabinet packages containing sections", async () => {

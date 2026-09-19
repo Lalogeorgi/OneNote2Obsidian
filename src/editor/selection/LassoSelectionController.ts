@@ -80,8 +80,7 @@ export class LassoSelectionController {
       const yj = poly[j]!.y;
 
       const intersect =
-        yi > pt.y !== yj > pt.y &&
-        pt.x < ((xj - xi) * (pt.y - yi)) / (yj - yi) + xi;
+        yi > pt.y !== yj > pt.y && pt.x < ((xj - xi) * (pt.y - yi)) / (yj - yi) + xi;
 
       if (intersect) inside = !inside;
     }

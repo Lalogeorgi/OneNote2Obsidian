@@ -5,9 +5,9 @@ import { Rectangle, Rect2D } from "./Rectangle";
  * 2D Viewport Camera state.
  */
 export interface ViewportTransform {
-  readonly x: number;         // Translation X in screen pixels
-  readonly y: number;         // Translation Y in screen pixels
-  readonly scale: number;     // Zoom Scale factor (1.0 = 100%)
+  readonly x: number; // Translation X in screen pixels
+  readonly y: number; // Translation Y in screen pixels
+  readonly scale: number; // Zoom Scale factor (1.0 = 100%)
   readonly rotation?: number; // In radians (default 0)
 }
 
@@ -36,21 +36,11 @@ export class AffineMatrix2D {
     }
     const cos = Math.cos(rotation);
     const sin = Math.sin(rotation);
-    return new AffineMatrix2D(
-      scale * cos,
-      scale * sin,
-      -scale * sin,
-      scale * cos,
-      x,
-      y
-    );
+    return new AffineMatrix2D(scale * cos, scale * sin, -scale * sin, scale * cos, x, y);
   }
 
   public applyToPoint(p: Point2D): Point {
-    return new Point(
-      this.a * p.x + this.c * p.y + this.tx,
-      this.b * p.x + this.d * p.y + this.ty
-    );
+    return new Point(this.a * p.x + this.c * p.y + this.tx, this.b * p.x + this.d * p.y + this.ty);
   }
 
   public inverse(): AffineMatrix2D | null {

@@ -61,7 +61,7 @@ describe("Page Context Manager & Registry", () => {
     expect(ctx).toBeDefined();
     expect(ctx?.notebookTitle).toBe("Dev Notebook");
     expect(ctx?.sectionName).toBe("Sprints");
-    expect(ctx?.markdownPath).toBe("OneNote/Dev Notebook/Sprints/Sprint 1.md");
+    expect(ctx?.markdownPath).toBe("OneNote2Obsidian/Dev Notebook/Sprints/Sprint 1.md");
   });
 
   it("emits events when active page or selected node changes", () => {

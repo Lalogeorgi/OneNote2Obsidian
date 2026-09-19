@@ -6,11 +6,75 @@ export interface ViewportFitOptions {
   readonly padding?: number;
   readonly minScale?: number;
   readonly maxScale?: number;
+  readonly align?: "center" | "top-left";
 }
 
 export class ViewportManager {
   public static readonly DEFAULT_MIN_SCALE = 0.05;
   public static readonly DEFAULT_MAX_SCALE = 5.0;
+
+  /**
+   * Calculates the ViewportTransform to position a target rectangle aligned to the top-left of the viewport.
+   * Keeps scale at 1.0 (100% zoom) unless the content width exceeds the available viewport width.
+   */
+  public static calculateTopLeftToBounds(
+    targetBounds: Rect2D,
+    viewportWidth: number,
+    _viewportHeight: number,
+    options: ViewportFitOptions = {}
+  ): ViewportTransform {
+    const padding = options.padding ?? 48;
+    const minScale = options.minScale ?? this.DEFAULT_MIN_SCALE;
+    const maxScale = options.maxScale ?? this.DEFAULT_MAX_SCALE;
+
+    const availableWidth = Math.max(10, viewportWidth - padding * 2);
+    let scale = 1.0;
+    if (targetBounds.width > 0 && targetBounds.width * scale > availableWidth) {
+      scale = Math.max(minScale, availableWidth / targetBounds.width);
+    }
+    scale = Math.min(maxScale, Math.max(minScale, scale));
+
+    const x = padding - targetBounds.x * scale;
+    const y = padding - targetBounds.y * scale;
+
+    return { x, y, scale };
+  }
+
+  /**
+   * Clamps the viewport transform so that the page content's top-left corner
+   * is anchored cleanly at the top-left of the viewport (padding, padding).
+   * Prevents content from floating down or right into the middle of the screen when zooming out.
+   */
+  public static clampTopLeftAnchor(
+    transform: ViewportTransform,
+    targetBounds: Rect2D,
+    _viewportWidth: number,
+    _viewportHeight: number,
+    options: ViewportFitOptions = {}
+  ): ViewportTransform {
+    const padding = options.padding ?? 48;
+    const maxScreenX = padding;
+    const maxScreenY = padding;
+
+    const contentScreenX = targetBounds.x * transform.scale + transform.x;
+    const contentScreenY = targetBounds.y * transform.scale + transform.y;
+
+    let x = transform.x;
+    let y = transform.y;
+
+    if (contentScreenX > maxScreenX) {
+      x = maxScreenX - targetBounds.x * transform.scale;
+    }
+    if (contentScreenY > maxScreenY) {
+      y = maxScreenY - targetBounds.y * transform.scale;
+    }
+
+    return {
+      ...transform,
+      x,
+      y,
+    };
+  }
 
   /**
    * Calculates the ViewportTransform to fit a target rectangle cleanly within viewport dimensions.
@@ -21,6 +85,11 @@ export class ViewportManager {
     viewportHeight: number,
     options: ViewportFitOptions = {}
   ): ViewportTransform {
+    const align = options.align ?? "top-left";
+    if (align === "top-left") {
+      return this.calculateTopLeftToBounds(targetBounds, viewportWidth, viewportHeight, options);
+    }
+
     const padding = options.padding ?? 40;
     const minScale = options.minScale ?? this.DEFAULT_MIN_SCALE;
     const maxScale = options.maxScale ?? this.DEFAULT_MAX_SCALE;
@@ -89,6 +158,44 @@ export class ViewportManager {
       x: current.x + deltaX,
       y: current.y + deltaY,
       scale: current.scale,
+      rotation: current.rotation,
+    };
+  }
+
+  /**
+   * Applies an exact incremental 2-point affine pinch-zoom and pan transformation.
+   * Anchors content under the two touch points without drift or rubber-banding.
+   */
+  public static pinchTransform(
+    current: ViewportTransform,
+    lastCenter: Point2D,
+    currentCenter: Point2D,
+    currentDist: number,
+    lastDist: number,
+    options: ViewportFitOptions = {}
+  ): ViewportTransform {
+    if (lastDist <= 0 || currentDist <= 0) {
+      // Pure pan fallback
+      const dx = currentCenter.x - lastCenter.x;
+      const dy = currentCenter.y - lastCenter.y;
+      return this.panBy(current, dx, dy);
+    }
+
+    const minScale = options.minScale ?? this.DEFAULT_MIN_SCALE;
+    const maxScale = options.maxScale ?? this.DEFAULT_MAX_SCALE;
+
+    const pinchRatio = currentDist / lastDist;
+    const targetScale = Math.min(maxScale, Math.max(minScale, current.scale * pinchRatio));
+    const effectiveScale = targetScale / current.scale;
+
+    // Exact incremental affine 2-point anchor translation:
+    const x = currentCenter.x - (lastCenter.x - current.x) * effectiveScale;
+    const y = currentCenter.y - (lastCenter.y - current.y) * effectiveScale;
+
+    return {
+      x,
+      y,
+      scale: targetScale,
       rotation: current.rotation,
     };
   }

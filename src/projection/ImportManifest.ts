@@ -54,15 +54,11 @@ export class ImportManifest {
   }
 
   public isDuplicate(sourceSha256: string): boolean {
-    return Object.values(this.data.notebooks).some(
-      (nb) => nb.sourceSha256 === sourceSha256
-    );
+    return Object.values(this.data.notebooks).some((nb) => nb.sourceSha256 === sourceSha256);
   }
 
   public findNotebookByHash(sourceSha256: string): ImportedNotebookEntry | undefined {
-    return Object.values(this.data.notebooks).find(
-      (nb) => nb.sourceSha256 === sourceSha256
-    );
+    return Object.values(this.data.notebooks).find((nb) => nb.sourceSha256 === sourceSha256);
   }
 
   public recordImport(entry: ImportedNotebookEntry): void {

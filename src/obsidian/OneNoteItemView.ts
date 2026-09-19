@@ -1,41 +1,43 @@
-import { ItemView, WorkspaceLeaf } from "obsidian";
+import { ItemView, Notice, TFile, ViewStateResult, WorkspaceLeaf } from "obsidian";
 import { Point, Point2D } from "../geometry/Point";
 import { CanonicalNotebook } from "../model/CanonicalNotebook";
 import { CanonicalPage } from "../model/CanonicalPage";
-import { PageId } from "../model/Ids";
+import { IdGenerator, PageId } from "../model/Ids";
+import { StickyNoteColorPreset } from "../model/CanonicalStickyNote";
+import { StickyNoteUtils } from "../model/StickyNoteUtils";
 import { PageScene } from "../pagescene/PageScene";
 import { SceneBuilder } from "../pagescene/SceneBuilder";
 import { InteractionTool } from "../renderer/interaction/SpatialInteractionController";
 import { PixiRenderer } from "../renderer/pixi/PixiRenderer";
-import { logger } from "../diagnostics/Logger";
-import { DiagnosticEntry } from "../diagnostics/DiagnosticTypes";
 import { PageContextManager } from "../context/PageContextManager";
-import { HybridViewCoordinator } from "./HybridViewCoordinator";
+import { FloatingStickyNoteManager } from "./FloatingStickyNoteManager";
+import { StickyNotesHubModal } from "./StickyNotesHubModal";
+import { OneNoteRibbon } from "./ribbon/OneNoteRibbon";
+import { PagePropertiesModal } from "./modal/PagePropertiesModal";
+import { CANVAS_STYLE_DEFAULTS, STICKY_NOTE_METRICS } from "../constants/StickyNoteConstants";
 
 export const VIEW_TYPE_ONENOTE_SPATIAL = "onenote-spatial-view";
 
 export class OneNoteItemView extends ItemView {
+  public ribbon: OneNoteRibbon | null = null;
   private renderer: PixiRenderer | null = null;
   private canvasHostEl: HTMLElement | null = null;
   private toolbarEl: HTMLElement | null = null;
-  private navBarEl: HTMLElement | null = null;
   private hudEl: HTMLElement | null = null;
-  private diagnosticsDrawerEl: HTMLElement | null = null;
+  private emptyStateEl: HTMLElement | null = null;
   private loadingOverlayEl: HTMLElement | null = null;
 
   private resizeObserver: ResizeObserver | null = null;
   private themeObserver: MutationObserver | null = null;
+  private unsubscribePageContext: (() => void) | null = null;
 
-  // Active Document State
-  private activeNotebook: CanonicalNotebook | null = null;
+  // Active Document State (One Page = One File Model)
   private activePage: CanonicalPage | null = null;
-  private allPages: CanonicalPage[] = [];
-  private activePageIndex = 0;
 
   // UI State
   private isDarkMode = false;
-  private isDiagnosticsOpen = false;
-  private cursorScenePos: Point2D = new Point(0, 0);
+  private hasUserPannedOrZoomed = false;
+  public cursorScenePos: Point2D = new Point(0, 0);
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
@@ -47,13 +49,29 @@ export class OneNoteItemView extends ItemView {
 
   public getDisplayText(): string {
     if (this.activePage) {
-      return `OneNote: ${this.activePage.title || "Untitled"}`;
+      return this.activePage.title || "Canvas";
     }
-    return "OneNote Spatial Canvas";
+    return "Canvas";
   }
 
   public getIcon(): string {
     return "layout-dashboard";
+  }
+
+  public getState(): Record<string, unknown> {
+    return {
+      pageId: this.activePage?.id,
+      pageTitle: this.activePage?.title,
+    };
+  }
+
+  public async setState(state: any, result: ViewStateResult): Promise<void> {
+    if (typeof (super.setState as any) === "function") {
+      await super.setState(state, result);
+    }
+    if (state?.pageId && (!this.activePage || this.activePage.id !== state.pageId)) {
+      await this.loadPageById(state.pageId);
+    }
   }
 
   public async onOpen(): Promise<void> {
@@ -64,13 +82,10 @@ export class OneNoteItemView extends ItemView {
     // Detect Obsidian Dark/Light mode
     this.isDarkMode = document.body.classList.contains("theme-dark");
 
-    // 1. Create Navigation Header Bar
-    this.createNavBar(container);
-
-    // 2. Create Canvas Host DOM container
+    // 1. Create Canvas Host DOM container (100% full view area)
     this.canvasHostEl = container.createDiv({ cls: "onenote-canvas-host-wrapper" });
 
-    // 3. Initialize PixiJS Renderer
+    // 2. Initialize PixiJS Renderer
     this.renderer = new PixiRenderer();
     await this.renderer.initialize(this.canvasHostEl, {
       preference: "webgl",
@@ -78,42 +93,296 @@ export class OneNoteItemView extends ItemView {
       devicePixelRatio: typeof window !== "undefined" ? window.devicePixelRatio : 1,
     });
 
+    this.renderer.setAssetResolver((assetId: string) => {
+      try {
+        const files = this.app.vault.getFiles();
+        const assetFile = files.find((f) => f.name.includes(assetId));
+        if (assetFile) {
+          return this.app.vault.adapter.getResourcePath(assetFile.path);
+        }
+      } catch {
+        // Fall back to undefined if vault access fails
+      }
+      return undefined;
+    });
+
     // Wire renderer callbacks
     this.renderer.onViewportChange = () => {
+      this.hasUserPannedOrZoomed = true;
       this.updateHud();
+      this.ribbon?.updateZoomDisplay();
     };
 
     this.renderer.onCursorSceneMove = (scenePt) => {
       this.cursorScenePos = scenePt;
-      this.updateHud();
     };
 
     this.renderer.onSelectionChange = (nodes) => {
-      this.updateToolbarSelectionState(nodes.length > 0);
       PageContextManager.getInstance().setSelectedNode(nodes.length > 0 ? nodes[0]!.id : null);
     };
 
-    // 4. Create Floating Spatial Toolbar & HUD Panel
-    this.createFloatingToolbar(container);
+    this.renderer.onWikilinkClick = (linkText: string) => {
+      const activeCtx = PageContextManager.getInstance().getActivePageContext();
+      const sourcePath = activeCtx?.markdownPath || "";
+      (this.app.workspace as any).openLinkText(linkText, sourcePath, false);
+    };
+
+    this.renderer.onStickyNotePopout = (node) => {
+      FloatingStickyNoteManager.getInstance().openPopoutWindow(
+        this.app,
+        node.element,
+        this.activePage?.id,
+        {
+          onDockToCanvas: (noteId) => {
+            this.renderer?.focusNode(noteId);
+          },
+        }
+      );
+    };
+
+    this.renderer.onStickyNoteCreateSibling = (node) => {
+      const sourceBounds = node.bounds || {
+        x: 100,
+        y: 100,
+        width: STICKY_NOTE_METRICS.DEFAULT_WIDTH,
+        height: STICKY_NOTE_METRICS.DEFAULT_HEIGHT,
+        zIndex: 1,
+      };
+      const newBounds = {
+        ...sourceBounds,
+        x: sourceBounds.x + STICKY_NOTE_METRICS.SIBLING_OFFSET_X,
+        y: sourceBounds.y + STICKY_NOTE_METRICS.SIBLING_OFFSET_Y,
+      };
+      const newNote = StickyNoteUtils.createDefaultStickyNote({
+        color: node.element?.color || "yellow",
+        bounds: newBounds,
+      });
+
+      FloatingStickyNoteManager.getInstance().openPopoutWindow(
+        this.app,
+        newNote,
+        this.activePage?.id
+      );
+    };
+
+    this.renderer.onStickyNoteOpenHub = () => {
+      new StickyNotesHubModal(this.app).open();
+    };
+
+    this.renderer.onStickyNoteDelete = (node) => {
+      if (!this.activePage) return;
+      const updatedElements = this.activePage.elements.filter((e) => e.id !== node.id);
+      this.activePage = { ...this.activePage, elements: updatedElements, modifiedTime: Date.now() };
+      const ctx = PageContextManager.getInstance().getPageContext(this.activePage.id);
+      if (ctx) {
+        PageContextManager.getInstance().registerPage({
+          ...ctx,
+          canonicalPage: this.activePage,
+        });
+        if (ctx.sidecarPath) {
+          FloatingStickyNoteManager.getInstance().schedulePageSave(
+            this.app,
+            this.activePage.id,
+            ctx.sidecarPath,
+            this.activePage
+          );
+        }
+      }
+      const scene = this.compilePageScene(this.activePage);
+      this.renderer?.renderScene(scene);
+    };
+
+    this.renderer.onStickyNoteStyleChange = (node, style) => {
+      if (!this.activePage) return;
+      const updatedElements = this.activePage.elements.map((e) => {
+        if (e.id === node.id && e.type === "stickyNote") {
+          return {
+            ...e,
+            color: style.color ?? (e as any).color,
+            opacity: style.opacity ?? (e as any).opacity,
+            modifiedTime: Date.now(),
+          };
+        }
+        return e;
+      });
+      this.activePage = { ...this.activePage, elements: updatedElements, modifiedTime: Date.now() };
+      const ctx = PageContextManager.getInstance().getPageContext(this.activePage.id);
+      if (ctx) {
+        PageContextManager.getInstance().registerPage({
+          ...ctx,
+          canonicalPage: this.activePage,
+        });
+        if (ctx.sidecarPath) {
+          FloatingStickyNoteManager.getInstance().schedulePageSave(
+            this.app,
+            this.activePage.id,
+            ctx.sidecarPath,
+            this.activePage
+          );
+        }
+      }
+      const scene = this.compilePageScene(this.activePage);
+      this.renderer?.renderScene(scene);
+    };
+
+    this.renderer.onStickyNotePinToggle = (node) => {
+      if (!this.activePage) return;
+      const updatedElements = this.activePage.elements.map((e) => {
+        if (e.id === node.id && e.type === "stickyNote") {
+          const isPinned = !(e as any).spatialMeta?.isPinned;
+          return {
+            ...e,
+            spatialMeta: {
+              ...(e as any).spatialMeta,
+              isPinned,
+            },
+            modifiedTime: Date.now(),
+          };
+        }
+        return e;
+      });
+      this.activePage = { ...this.activePage, elements: updatedElements, modifiedTime: Date.now() };
+      const ctx = PageContextManager.getInstance().getPageContext(this.activePage.id);
+      if (ctx) {
+        PageContextManager.getInstance().registerPage({
+          ...ctx,
+          canonicalPage: this.activePage,
+        });
+        if (ctx.sidecarPath) {
+          FloatingStickyNoteManager.getInstance().schedulePageSave(
+            this.app,
+            this.activePage.id,
+            ctx.sidecarPath,
+            this.activePage
+          );
+        }
+      }
+      const scene = this.compilePageScene(this.activePage);
+      this.renderer?.renderScene(scene);
+    };
+
+    this.renderer.onStickyNoteTitleChange = (node, newTitle) => {
+      if (!this.activePage) return;
+      const updatedElements = this.activePage.elements.map((e) => {
+        if (e.id === node.id && e.type === "stickyNote") {
+          return {
+            ...e,
+            title: newTitle,
+            modifiedTime: Date.now(),
+          };
+        }
+        return e;
+      });
+      this.activePage = { ...this.activePage, elements: updatedElements, modifiedTime: Date.now() };
+      const ctx = PageContextManager.getInstance().getPageContext(this.activePage.id);
+      if (ctx) {
+        PageContextManager.getInstance().registerPage({
+          ...ctx,
+          canonicalPage: this.activePage,
+        });
+        if (ctx.sidecarPath) {
+          FloatingStickyNoteManager.getInstance().schedulePageSave(
+            this.app,
+            this.activePage.id,
+            ctx.sidecarPath,
+            this.activePage
+          );
+        }
+      }
+    };
+
+    this.renderer.onAttachmentClick = (node) => {
+      new Notice(`Attachment: ${node.fileName} (${(node.fileSizeBytes / 1024).toFixed(1)} KB)`);
+    };
+
+    this.renderer.onTitleChange = async (newTitle: string) => {
+      if (!this.activePage) return;
+      const sanitized = newTitle.trim() || "Untitled";
+      this.activePage = { ...this.activePage, title: sanitized };
+
+      // Update tab header
+      if ((this.leaf as any).updateHeader) {
+        (this.leaf as any).updateHeader();
+      }
+
+      // Rename markdown note and sidecar in Obsidian vault if registered
+      const ctx = PageContextManager.getInstance().getPageContext(this.activePage.id);
+      if (ctx && ctx.markdownPath) {
+        try {
+          const oldMdPath = ctx.markdownPath;
+          const parentDir = oldMdPath.substring(0, oldMdPath.lastIndexOf("/"));
+          const newMdPath = `${parentDir}/${sanitized}.md`;
+          const newSidecarPath = `${parentDir}/${sanitized}.onecanvas.json`;
+
+          const mdFile = this.app.vault.getAbstractFileByPath(oldMdPath);
+          if (mdFile instanceof TFile) {
+            await this.app.fileManager.renameFile(mdFile, newMdPath);
+          }
+
+          if (ctx.sidecarPath) {
+            const sidecarFile = this.app.vault.getAbstractFileByPath(ctx.sidecarPath);
+            if (sidecarFile instanceof TFile) {
+              await this.app.fileManager.renameFile(sidecarFile, newSidecarPath);
+            }
+          }
+
+          PageContextManager.getInstance().updatePageTitle(
+            this.activePage.id,
+            sanitized,
+            newMdPath,
+            newSidecarPath
+          );
+        } catch {
+          PageContextManager.getInstance().updatePageTitle(this.activePage.id, sanitized);
+        }
+      } else {
+        PageContextManager.getInstance().updatePageTitle(this.activePage.id, sanitized);
+      }
+    };
+
+    // 3. Create Authentic OneNote Ribbon, HUD & Empty State
+    const pluginInstance =
+      typeof this.app !== "undefined"
+        ? (this.app as any)?.plugins?.plugins?.["onenote2obsidian"]
+        : undefined;
+    const defaultStickyColor = pluginInstance?.settings?.defaultStickyNoteColor || "yellow";
+
+    this.ribbon = new OneNoteRibbon({
+      container,
+      renderer: this.renderer,
+      app: this.app,
+      defaultStickyNoteColor: defaultStickyColor,
+      onToolChange: (tool) => {
+        this.activeTool = tool;
+      },
+      onPagePropertiesClick: () => {
+        this.openPagePropertiesModal();
+      },
+    });
+    this.toolbarEl = this.ribbon.el;
     this.createHud(container);
-    this.createDiagnosticsDrawer(container);
+    this.createEmptyState(container);
     this.createLoadingOverlay(container);
 
-    // 5. Setup Resize Observer
+    // 4. Setup Resize Observer
     if (typeof ResizeObserver !== "undefined") {
       this.resizeObserver = new ResizeObserver((entries) => {
         for (const entry of entries) {
           const { width, height } = entry.contentRect;
           if (width > 0 && height > 0 && this.renderer) {
             this.renderer.resize(width, height);
+            if (!this.hasUserPannedOrZoomed) {
+              this.renderer.fitToPage({ padding: 48, align: "top-left" });
+            }
             this.updateHud();
+            this.ribbon?.updateZoomDisplay();
           }
         }
       });
       this.resizeObserver.observe(this.canvasHostEl);
     }
 
-    // 6. Setup Obsidian Theme Change Observer
+    // 5. Setup Obsidian Theme Change Observer
     if (typeof MutationObserver !== "undefined") {
       this.themeObserver = new MutationObserver(() => {
         const isDark = document.body.classList.contains("theme-dark");
@@ -128,11 +397,79 @@ export class OneNoteItemView extends ItemView {
       });
     }
 
-    // 7. Render Default Initial Sample Page
-    this.loadSampleDemoNotebook();
+    // 6. Listen to Active Page changes across Obsidian
+    this.unsubscribePageContext = PageContextManager.getInstance().onPageChange((ctx) => {
+      if (ctx?.canonicalPage && ctx.canonicalPage.id !== this.activePage?.id) {
+        this.loadPage(ctx.canonicalPage);
+      }
+    });
+
+    // 7. If page is already attached or active context exists, render it
+    if (this.activePage) {
+      this.loadPage(this.activePage);
+    } else {
+      const activeCtx = PageContextManager.getInstance().getActivePageContext();
+      if (activeCtx?.canonicalPage) {
+        this.loadPage(activeCtx.canonicalPage);
+      } else {
+        this.autoResolveActiveDocument();
+      }
+    }
+  }
+
+  private async autoResolveActiveDocument(): Promise<void> {
+    try {
+      const plugin =
+        typeof this.app !== "undefined"
+          ? (this.app as any)?.plugins?.plugins?.["onenote2obsidian"]
+          : undefined;
+      if (plugin?.coordinator && !this.activePage) {
+        const page = await plugin.coordinator.resolveCanonicalPage();
+        if (page && !this.activePage) {
+          this.loadPage(page);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  public openPagePropertiesModal(): void {
+    if (!this.activePage) {
+      new Notice("No active page loaded to edit properties.");
+      return;
+    }
+    new PagePropertiesModal(this.app, this.activePage.id, (updatedProps) => {
+      if (updatedProps.onenote_title && this.activePage) {
+        this.activePage = { ...this.activePage, title: updatedProps.onenote_title };
+        if (this.renderer) {
+          const scene = this.compilePageScene(this.activePage);
+          this.renderer.renderScene(scene);
+        }
+      }
+    }).open();
+  }
+
+  public onResize(): void {
+    super.onResize();
+    if (!this.canvasHostEl || !this.renderer) return;
+    const width = this.canvasHostEl.clientWidth;
+    const height = this.canvasHostEl.clientHeight;
+    if (width > 0 && height > 0) {
+      this.renderer.resize(width, height);
+      if (!this.hasUserPannedOrZoomed) {
+        this.renderer.fitToPage({ padding: 48, align: "top-left" });
+      }
+      this.updateHud();
+      this.ribbon?.updateZoomDisplay();
+    }
   }
 
   public async onClose(): Promise<void> {
+    if (this.unsubscribePageContext) {
+      this.unsubscribePageContext();
+      this.unsubscribePageContext = null;
+    }
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;
@@ -149,40 +486,15 @@ export class OneNoteItemView extends ItemView {
     }
 
     this.canvasHostEl = null;
+    if (this.ribbon) {
+      this.ribbon.destroy();
+      this.ribbon = null;
+    }
     this.toolbarEl = null;
-    this.navBarEl = null;
     this.hudEl = null;
-    this.diagnosticsDrawerEl = null;
+    this.emptyStateEl = null;
     this.loadingOverlayEl = null;
     this.contentEl.empty();
-  }
-
-  /**
-   * Load and display a full CanonicalNotebook.
-   */
-  public loadNotebook(notebook: CanonicalNotebook): void {
-    this.activeNotebook = notebook;
-    this.allPages = [];
-
-    // Collect all pages across root sections and nested section groups
-    for (const sec of notebook.sections) {
-      for (const p of sec.pages) {
-        this.allPages.push(p);
-      }
-    }
-    for (const group of notebook.sectionGroups) {
-      for (const sec of group.sections) {
-        for (const p of sec.pages) {
-          this.allPages.push(p);
-        }
-      }
-    }
-
-    this.updateNavBar();
-
-    if (this.allPages.length > 0) {
-      this.switchPageByIndex(0);
-    }
   }
 
   /**
@@ -191,52 +503,96 @@ export class OneNoteItemView extends ItemView {
   public loadPage(page: CanonicalPage): void {
     this.activePage = page;
     PageContextManager.getInstance().setActivePage(page.id);
+
+    if (this.emptyStateEl) {
+      this.emptyStateEl.addClass("is-hidden");
+    }
+
     this.showLoading(true);
 
     try {
       const scene = this.compilePageScene(page);
       if (this.renderer) {
         this.renderer.renderScene(scene);
-        this.renderer.fitToPage({ padding: 60 });
+        this.hasUserPannedOrZoomed = false;
+        this.renderer.fitToPage({ padding: 48, align: "top-left" });
       }
-      this.updateNavBar();
       this.updateHud();
+      this.ribbon?.updateZoomDisplay();
     } finally {
       this.showLoading(false);
     }
   }
 
   /**
-   * Switch active page by ID.
+   * Backward-compatible notebook loader: loads the first page of the notebook.
    */
-  public loadPageById(pageId: PageId): void {
-    const idx = this.allPages.findIndex((p) => p.id === pageId);
-    if (idx !== -1) {
-      this.switchPageByIndex(idx);
+  public loadNotebook(notebook: CanonicalNotebook): void {
+    let firstPage: CanonicalPage | null = null;
+    for (const sec of notebook.sections) {
+      if (sec.pages.length > 0) {
+        firstPage = sec.pages[0] || null;
+        break;
+      }
+    }
+    if (!firstPage) {
+      for (const group of notebook.sectionGroups) {
+        for (const sec of group.sections) {
+          if (sec.pages.length > 0) {
+            firstPage = sec.pages[0] || null;
+            break;
+          }
+        }
+        if (firstPage) break;
+      }
+    }
+
+    if (firstPage) {
+      this.loadPage(firstPage);
     }
   }
 
-  private switchPageByIndex(index: number): void {
-    if (index < 0 || index >= this.allPages.length) return;
-    this.activePageIndex = index;
-    const page = this.allPages[index]!;
-    this.loadPage(page);
+  /**
+   * Load page by ID from the global PageContextManager if registered,
+   * or resolve from vault sidecar files via coordinator.
+   */
+  public async loadPageById(pageId: PageId): Promise<void> {
+    const ctx = PageContextManager.getInstance().getPageContext(pageId);
+    if (ctx?.canonicalPage) {
+      this.loadPage(ctx.canonicalPage);
+      return;
+    }
+
+    try {
+      const plugin =
+        typeof this.app !== "undefined"
+          ? (this.app as any)?.plugins?.plugins?.["onenote2obsidian"]
+          : undefined;
+      if (plugin?.coordinator) {
+        const page = await plugin.coordinator.resolveCanonicalPage(pageId);
+        if (page) {
+          this.loadPage(page);
+        }
+      }
+    } catch {
+      // ignore
+    }
   }
 
   private compilePageScene(page: CanonicalPage): PageScene {
-    // Theme-adjusted background style
-    const baseScene = SceneBuilder.build(page);
+    // Theme-adjusted background style with on-canvas page title injection
+    const baseScene = SceneBuilder.build(page, { showPageTitle: true });
 
     if (this.isDarkMode) {
       return {
         ...baseScene,
         canvasStyle: {
           ...baseScene.canvasStyle,
-          backgroundColor: "#1E1E1E",
+          backgroundColor: CANVAS_STYLE_DEFAULTS.DARK_MODE_BACKGROUND,
           ruleLines: baseScene.canvasStyle.ruleLines
             ? {
                 ...baseScene.canvasStyle.ruleLines,
-                color: "#374151",
+                color: CANVAS_STYLE_DEFAULTS.DARK_MODE_RULE_COLOR,
               }
             : undefined,
         },
@@ -253,76 +609,78 @@ export class OneNoteItemView extends ItemView {
     }
   }
 
-  private createNavBar(container: HTMLElement): void {
-    this.navBarEl = container.createDiv({ cls: "onenote-nav-bar" });
-    this.updateNavBar();
-  }
-
-  private updateNavBar(): void {
-    if (!this.navBarEl) return;
-    this.navBarEl.empty();
-
-    const titleContainer = this.navBarEl.createDiv({ cls: "onenote-nav-title-group" });
-
-    // Breadcrumbs & Notebook Badge
-    const nbTitle = this.activeNotebook?.title || "OneNote Notebook";
-    titleContainer.createEl("span", { cls: "onenote-nav-nb-badge", text: nbTitle });
-
-    // Source Provenance Indicator
-    titleContainer.createEl("span", {
-      cls: "onenote-nav-provenance-pill",
-      text: "📦 OneNote 100% Fidelity",
+  private createEmptyState(container: HTMLElement): void {
+    this.emptyStateEl = container.createDiv({ cls: "onenote-empty-state" });
+    this.emptyStateEl.createDiv({ cls: "onenote-empty-title", text: "Canvas" });
+    this.emptyStateEl.createDiv({
+      cls: "onenote-empty-desc",
+      text: "Create a new canvas, open an existing note, or import a file (.one / .onepkg) to view.",
     });
 
-    // Prev / Next Page Buttons
-    const navButtons = this.navBarEl.createDiv({ cls: "onenote-nav-buttons" });
+    const btnRow = this.emptyStateEl.createDiv({
+      cls: "onenote-empty-actions",
+      attr: { style: "display: flex; gap: 8px; justify-content: center; margin-top: 12px;" },
+    });
 
-    const prevBtn = navButtons.createEl("button", { cls: "onenote-btn-icon", text: "‹" });
-    prevBtn.title = "Previous Page";
-    prevBtn.disabled = this.activePageIndex <= 0;
-    prevBtn.addEventListener("click", () => this.switchPageByIndex(this.activePageIndex - 1));
+    const newBtn = btnRow.createEl("button", {
+      cls: "onenote-empty-btn mod-cta",
+      text: "➕ New Canvas",
+    });
+    newBtn.addEventListener("click", async () => {
+      const plugin = (this.app as any).plugins?.getPlugin("onenote2obsidian");
+      if (plugin && typeof plugin.createNewCanvas === "function") {
+        await plugin.createNewCanvas();
+      }
+    });
 
-    // Page Selector Dropdown
-    const select = navButtons.createEl("select", { cls: "onenote-nav-page-select" });
-    if (this.allPages.length === 0 && this.activePage) {
-      const opt = select.createEl("option", { text: this.activePage.title || "Untitled Page" });
-      opt.value = "0";
-    } else {
-      this.allPages.forEach((p, idx) => {
-        const opt = select.createEl("option", { text: `${idx + 1}. ${p.title || "Untitled"}` });
-        opt.value = `${idx}`;
-        if (idx === this.activePageIndex) opt.selected = true;
-      });
+    const importBtn = btnRow.createEl("button", {
+      cls: "onenote-empty-btn",
+      text: "📥 Import File",
+    });
+    importBtn.addEventListener("click", () => {
+      const plugin = (this.app as any).plugins?.getPlugin("onenote2obsidian");
+      if (plugin && typeof plugin.openImportModal === "function") {
+        plugin.openImportModal();
+      }
+    });
+
+    if (this.activePage) {
+      this.emptyStateEl.addClass("is-hidden");
     }
-
-    select.addEventListener("change", () => {
-      this.switchPageByIndex(parseInt(select.value, 10));
-    });
-
-    const nextBtn = navButtons.createEl("button", { cls: "onenote-btn-icon", text: "›" });
-    nextBtn.title = "Next Page";
-    nextBtn.disabled = this.activePageIndex >= this.allPages.length - 1;
-    nextBtn.addEventListener("click", () => this.switchPageByIndex(this.activePageIndex + 1));
   }
 
-  private createFloatingToolbar(container: HTMLElement): void {
+  private activeInkColor: string = CANVAS_STYLE_DEFAULTS.DEFAULT_INK_COLOR;
+  private activeInkWidth: number = CANVAS_STYLE_DEFAULTS.DEFAULT_INK_WIDTH;
+  private activeTool: InteractionTool = "select";
+
+  public createFloatingToolbar(container: HTMLElement): void {
     this.toolbarEl = container.createDiv({ cls: "onenote-floating-toolbar" });
 
-    // 1. Tool selection buttons
+    // 1. History Group (Undo / Redo)
+    const historyGroup = this.toolbarEl.createDiv({ cls: "onenote-tool-group" });
+    const undoBtn = historyGroup.createEl("button", { cls: "onenote-btn-icon", text: "↶" });
+    undoBtn.title = "Undo (Ctrl+Z)";
+    undoBtn.addEventListener("click", () => this.renderer?.undo());
+
+    const redoBtn = historyGroup.createEl("button", { cls: "onenote-btn-icon", text: "↷" });
+    redoBtn.title = "Redo (Ctrl+Y)";
+    redoBtn.addEventListener("click", () => this.renderer?.redo());
+
+    this.toolbarEl.createDiv({ cls: "onenote-toolbar-divider" });
+
+    // 2. Selection & Navigation Group
+    const selectGroup = this.toolbarEl.createDiv({ cls: "onenote-tool-group" });
     const tools: Array<{ id: InteractionTool; label: string; title: string }> = [
-      { id: "select", label: "↖ Select", title: "Select & Transform Objects" },
+      { id: "select", label: "↖ Select", title: "Select & Type (Pointer)" },
+      { id: "lasso", label: "➰ Lasso", title: "Lasso Selection" },
       { id: "pan", label: "✋ Pan", title: "Pan Canvas" },
-      { id: "pen", label: "🖊️ Pen", title: "Draw Freehand Ink" },
-      { id: "highlighter", label: "🖍️ High", title: "Highlight Content" },
-      { id: "eraser", label: "🧹 Erase", title: "Erase Ink Strokes" },
-      { id: "lasso", label: "➰ Lasso", title: "Lasso / Marquee Select" },
     ];
 
     const toolButtons = new Map<InteractionTool, HTMLElement>();
 
     for (const t of tools) {
-      const btn = this.toolbarEl.createEl("button", {
-        cls: `onenote-tool-btn ${t.id === "select" ? "is-active" : ""}`,
+      const btn = selectGroup.createEl("button", {
+        cls: `onenote-tool-btn ${this.activeTool === t.id ? "is-active" : ""}`,
         text: t.label,
       });
       btn.title = t.title;
@@ -334,96 +692,273 @@ export class OneNoteItemView extends ItemView {
       toolButtons.set(t.id, btn);
     }
 
-    // Divider
     this.toolbarEl.createDiv({ cls: "onenote-toolbar-divider" });
 
-    // 2. Edit Action Controls (Undo / Redo / Duplicate / Delete / Z-Order)
-    const undoBtn = this.toolbarEl.createEl("button", { cls: "onenote-btn-icon", text: "↩" });
-    undoBtn.title = "Undo (Ctrl+Z)";
-    undoBtn.addEventListener("click", () => this.renderer?.undo());
+    // 3. Draw & Inking Group
+    const drawGroup = this.toolbarEl.createDiv({ cls: "onenote-tool-group" });
+    const penBtn = drawGroup.createEl("button", {
+      cls: `onenote-tool-btn ${this.activeTool === "pen" ? "is-active" : ""}`,
+      text: "✏️ Pen",
+    });
+    penBtn.title = "Draw with Pen";
+    penBtn.addEventListener("click", () => {
+      this.renderer?.setInkOptions({
+        mode: "pen",
+        color: this.activeInkColor,
+        strokeWidth: this.activeInkWidth,
+      });
+      this.setTool("pen");
+      toolButtons.forEach((b) => b.removeClass("is-active"));
+      penBtn.addClass("is-active");
+    });
+    toolButtons.set("pen", penBtn);
 
-    const redoBtn = this.toolbarEl.createEl("button", { cls: "onenote-btn-icon", text: "↪" });
-    redoBtn.title = "Redo (Ctrl+Y)";
-    redoBtn.addEventListener("click", () => this.renderer?.redo());
+    const highBtn = drawGroup.createEl("button", {
+      cls: `onenote-tool-btn ${this.activeTool === "highlighter" ? "is-active" : ""}`,
+      text: "🖍️ Highlighter",
+    });
+    highBtn.title = "Draw with Highlighter";
+    highBtn.addEventListener("click", () => {
+      this.renderer?.setInkOptions({
+        mode: "highlighter",
+        color: this.activeInkColor === "#000000" ? "#FEF08A" : this.activeInkColor,
+        strokeWidth: Math.max(12, this.activeInkWidth * 3),
+      });
+      this.setTool("highlighter");
+      toolButtons.forEach((b) => b.removeClass("is-active"));
+      highBtn.addClass("is-active");
+    });
+    toolButtons.set("highlighter", highBtn);
 
-    const dupBtn = this.toolbarEl.createEl("button", { cls: "onenote-btn-icon", text: "⧉" });
-    dupBtn.title = "Duplicate Selection (Ctrl+D)";
-    dupBtn.addEventListener("click", () => this.renderer?.duplicateSelection());
+    const eraserBtn = drawGroup.createEl("button", {
+      cls: `onenote-tool-btn ${this.activeTool === "eraser" ? "is-active" : ""}`,
+      text: "🧹 Eraser",
+    });
+    eraserBtn.title = "Stroke Eraser";
+    eraserBtn.addEventListener("click", () => {
+      this.setTool("eraser");
+      toolButtons.forEach((b) => b.removeClass("is-active"));
+      eraserBtn.addClass("is-active");
+    });
+    toolButtons.set("eraser", eraserBtn);
 
-    const delBtn = this.toolbarEl.createEl("button", { cls: "onenote-btn-icon", text: "🗑️" });
-    delBtn.title = "Delete Selection (Delete)";
-    delBtn.addEventListener("click", () => this.renderer?.deleteSelection());
+    // Ink Color & Thickness Flyout
+    const paletteBtn = drawGroup.createEl("button", {
+      cls: "onenote-btn-palette",
+      title: "Pen Color & Thickness",
+    });
+    const swatchIndicator = paletteBtn.createDiv({ cls: "onenote-swatch-indicator" });
+    swatchIndicator.style.backgroundColor = this.activeInkColor;
 
-    const frontBtn = this.toolbarEl.createEl("button", { cls: "onenote-btn-icon", text: "⇈" });
-    frontBtn.title = "Bring to Front";
-    frontBtn.addEventListener("click", () => this.renderer?.adjustZOrder("bringToFront"));
+    const palettePopup = drawGroup.createDiv({ cls: "onenote-palette-popup is-hidden" });
+    const colors = [
+      "#000000",
+      "#1E40AF",
+      "#DC2626",
+      "#16A34A",
+      "#9333EA",
+      "#EC4899",
+      "#EA580C",
+      "#FACC15",
+    ];
+    const swatchRow = palettePopup.createDiv({ cls: "onenote-swatch-row" });
+    for (const c of colors) {
+      const sw = swatchRow.createDiv({ cls: "onenote-color-swatch" });
+      sw.style.backgroundColor = c;
+      sw.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.activeInkColor = c;
+        swatchIndicator.style.backgroundColor = c;
+        this.renderer?.setInkOptions({ color: c });
+        palettePopup.addClass("is-hidden");
+      });
+    }
 
-    const backBtn = this.toolbarEl.createEl("button", { cls: "onenote-btn-icon", text: "⇊" });
-    backBtn.title = "Send to Back";
-    backBtn.addEventListener("click", () => this.renderer?.adjustZOrder("sendToBack"));
+    const widthRow = palettePopup.createDiv({ cls: "onenote-width-row" });
+    const widths = [
+      { w: 1.5, label: "Fine (1.5pt)" },
+      { w: 3.0, label: "Medium (3pt)" },
+      { w: 6.0, label: "Thick (6pt)" },
+      { w: 12.0, label: "Marker (12pt)" },
+    ];
+    for (const item of widths) {
+      const wb = widthRow.createEl("button", { cls: "onenote-width-btn", text: item.label });
+      wb.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.activeInkWidth = item.w;
+        this.renderer?.setInkOptions({ strokeWidth: item.w });
+        palettePopup.addClass("is-hidden");
+      });
+    }
 
-    // Divider
+    paletteBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      palettePopup.toggleClass("is-hidden", !palettePopup.hasClass("is-hidden"));
+    });
+
+    document.addEventListener("click", () => {
+      palettePopup.addClass("is-hidden");
+    });
+
     this.toolbarEl.createDiv({ cls: "onenote-toolbar-divider" });
 
-    // 3. Zoom Controls
-    const zoomInBtn = this.toolbarEl.createEl("button", { cls: "onenote-btn-icon", text: "+" });
+    // 4. Insert Group
+    const insertGroup = this.toolbarEl.createDiv({ cls: "onenote-tool-group" });
+    const noteBtn = insertGroup.createEl("button", { cls: "onenote-btn", text: "📝 Note" });
+    noteBtn.title = "Insert Text Box / Note Container";
+    noteBtn.addEventListener("click", () => {
+      this.renderer?.insertNoteContainer();
+    });
+
+    const stickyBtn = insertGroup.createEl("button", { cls: "onenote-btn", text: "📌 Sticky" });
+    stickyBtn.title = "Insert Sticky Note (Click to insert, right-click for colors)";
+
+    const stickyPalettePopup = insertGroup.createDiv({
+      cls: "onenote-palette-popup is-hidden",
+    });
+    const stickySwatchRow = stickyPalettePopup.createDiv({ cls: "onenote-swatch-row" });
+    const stickyPresets: StickyNoteColorPreset[] = [
+      "yellow",
+      "green",
+      "pink",
+      "blue",
+      "purple",
+      "orange",
+      "teal",
+      "charcoal",
+      "gray",
+    ];
+    for (const preset of stickyPresets) {
+      const sw = stickySwatchRow.createDiv({ cls: "onenote-color-swatch" });
+      const pal = StickyNoteUtils.resolveStickyNoteColors(preset);
+      sw.style.backgroundColor = pal.background;
+      sw.title = preset.charAt(0).toUpperCase() + preset.slice(1);
+      sw.addEventListener("click", (e) => {
+        e.stopPropagation();
+        stickyPalettePopup.addClass("is-hidden");
+        const activeCtx = PageContextManager.getInstance().getActivePageContext();
+        const newNote = StickyNoteUtils.createDefaultStickyNote({ color: preset });
+        FloatingStickyNoteManager.getInstance().openPopoutWindow(
+          this.app,
+          newNote,
+          activeCtx?.pageId
+        );
+      });
+    }
+
+    stickyBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const activeCtx = PageContextManager.getInstance().getActivePageContext();
+      const newNote = StickyNoteUtils.createDefaultStickyNote({ color: "yellow" });
+      FloatingStickyNoteManager.getInstance().openPopoutWindow(
+        this.app,
+        newNote,
+        activeCtx?.pageId
+      );
+    });
+
+    stickyBtn.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      stickyPalettePopup.toggleClass("is-hidden", !stickyPalettePopup.hasClass("is-hidden"));
+    });
+
+    document.addEventListener("click", () => {
+      stickyPalettePopup.addClass("is-hidden");
+    });
+
+    const imgInput = insertGroup.createEl("input", { type: "file" });
+    imgInput.accept = "image/*";
+    imgInput.style.display = "none";
+    imgInput.addEventListener("change", async () => {
+      const file = imgInput.files?.[0];
+      if (file && this.renderer) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const assetId = IdGenerator.assetId("img_" + Date.now());
+          this.renderer?.insertImage(assetId, file.type, 320, 240);
+        };
+        reader.readAsArrayBuffer(file);
+      }
+      imgInput.value = "";
+    });
+
+    const imgBtn = insertGroup.createEl("button", { cls: "onenote-btn", text: "🖼️ Picture" });
+    imgBtn.title = "Insert Picture from File";
+    imgBtn.addEventListener("click", () => imgInput.click());
+
+    const tableBtn = insertGroup.createEl("button", { cls: "onenote-btn", text: "📊 Table" });
+    tableBtn.title = "Insert 2x2 Table";
+    tableBtn.addEventListener("click", () => {
+      this.renderer?.insertTable(2, 2);
+    });
+
+    const timeBtn = insertGroup.createEl("button", { cls: "onenote-btn", text: "🕒 Date" });
+    timeBtn.title = "Insert Date & Time Stamp";
+    timeBtn.addEventListener("click", () => {
+      this.renderer?.insertTimestamp();
+    });
+
+    this.toolbarEl.createDiv({ cls: "onenote-toolbar-divider" });
+
+    // 5. Page View & Appearance Group
+    const viewGroup = this.toolbarEl.createDiv({ cls: "onenote-tool-group" });
+    const ruleBtn = viewGroup.createEl("button", { cls: "onenote-btn", text: "📏 Rules" });
+    ruleBtn.title = "Toggle Rule & Grid Lines";
+    let ruleStateIndex = 0;
+    const ruleStates: Array<"none" | "standard-ruled" | "small-grid"> = [
+      "none",
+      "standard-ruled",
+      "small-grid",
+    ];
+    ruleBtn.addEventListener("click", () => {
+      ruleStateIndex = (ruleStateIndex + 1) % ruleStates.length;
+      this.renderer?.setPageRuleLines(ruleStates[ruleStateIndex]!);
+    });
+
+    const pageColorBtn = viewGroup.createEl("button", { cls: "onenote-btn", text: "🎨 Tint" });
+    pageColorBtn.title = "Cycle Page Tint Color";
+    let colorIndex = 0;
+    const pageColors = ["#FFFFFF", "#FFFDF0", "#F0FFF4", "#FFF5F5", "#1E1E1E"];
+    pageColorBtn.addEventListener("click", () => {
+      colorIndex = (colorIndex + 1) % pageColors.length;
+      this.renderer?.setPageBackgroundColor(pageColors[colorIndex]!);
+    });
+
+    const fitBtn = viewGroup.createEl("button", { cls: "onenote-btn", text: "⛶ Fit" });
+    fitBtn.title = "Fit Content (Fit to Window)";
+    fitBtn.addEventListener("click", () => {
+      if (this.renderer) this.renderer.fitToPage({ padding: 48, align: "top-left" });
+    });
+
+    const resetBtn = viewGroup.createEl("button", { cls: "onenote-btn", text: "1:1" });
+    resetBtn.title = "Reset Zoom to 100%";
+    resetBtn.addEventListener("click", () => {
+      if (this.renderer) this.renderer.fitToPage({ padding: 48, align: "top-left" });
+    });
+
+    const linkModeBtn = viewGroup.createEl("button", { cls: "onenote-btn", text: "🔗 Links" });
+    linkModeBtn.title = "Cycle Spatial Backlinks Visibility (Hover -> Always -> Hidden)";
+    const linkModes: Array<import("../renderer/pixi/SpatialLinkRenderer").SpatialLinkCurveMode> = [
+      "hover",
+      "always",
+      "hidden",
+    ];
+    let linkModeIdx = 0;
+    linkModeBtn.addEventListener("click", () => {
+      linkModeIdx = (linkModeIdx + 1) % linkModes.length;
+      const mode = linkModes[linkModeIdx]!;
+      this.renderer?.setLinkCurveMode(mode);
+      linkModeBtn.setText(`🔗 Links: ${mode.charAt(0).toUpperCase() + mode.slice(1)}`);
+    });
+
+    const zoomInBtn = viewGroup.createEl("button", { cls: "onenote-btn-icon", text: "+" });
     zoomInBtn.title = "Zoom In";
     zoomInBtn.addEventListener("click", () => this.zoomBy(1.2));
 
-    const zoomOutBtn = this.toolbarEl.createEl("button", { cls: "onenote-btn-icon", text: "−" });
+    const zoomOutBtn = viewGroup.createEl("button", { cls: "onenote-btn-icon", text: "−" });
     zoomOutBtn.title = "Zoom Out";
     zoomOutBtn.addEventListener("click", () => this.zoomBy(0.8));
-
-    const fitBtn = this.toolbarEl.createEl("button", { cls: "onenote-btn", text: "⛶ Fit" });
-    fitBtn.title = "Fit Entire Page (Fit to Window)";
-    fitBtn.addEventListener("click", () => {
-      if (this.renderer) this.renderer.fitToPage({ padding: 60 });
-    });
-
-    const resetBtn = this.toolbarEl.createEl("button", { cls: "onenote-btn", text: "1:1" });
-    resetBtn.title = "Reset Zoom to 100%";
-    resetBtn.addEventListener("click", () => {
-      if (this.renderer) this.renderer.setViewport({ x: 60, y: 60, scale: 1.0 });
-    });
-
-    const zoomSelBtn = this.toolbarEl.createEl("button", {
-      cls: "onenote-btn onenote-btn-zoom-sel",
-      text: "🔍 Selection",
-    });
-    zoomSelBtn.title = "Zoom to Selected Elements";
-    zoomSelBtn.addEventListener("click", () => {
-      if (this.renderer) this.renderer.zoomToSelection({ padding: 60 });
-    });
-
-    // Divider
-    this.toolbarEl.createDiv({ cls: "onenote-toolbar-divider" });
-
-    // 4. Hybrid View Switching Buttons
-    const noteBtn = this.toolbarEl.createEl("button", {
-      cls: "onenote-btn onenote-btn-note",
-      text: "📄 Note",
-    });
-    noteBtn.title = "Open Semantic Markdown Note for this page";
-    noteBtn.addEventListener("click", () => {
-      new HybridViewCoordinator(this.app).openMarkdownView(this.activePage?.id);
-    });
-
-    const splitBtn = this.toolbarEl.createEl("button", {
-      cls: "onenote-btn onenote-btn-split",
-      text: "◫ Split",
-    });
-    splitBtn.title = "Open Side-by-Side Split View (Spatial + Markdown)";
-    splitBtn.addEventListener("click", () => {
-      new HybridViewCoordinator(this.app).openSplitView(this.activePage?.id);
-    });
-
-    // Divider
-    this.toolbarEl.createDiv({ cls: "onenote-toolbar-divider" });
-
-    // 5. Diagnostics Toggle
-    const diagBtn = this.toolbarEl.createEl("button", { cls: "onenote-btn onenote-btn-diag", text: "⚡ Logs" });
-    diagBtn.title = "Toggle Diagnostics & Issues Inspector";
-    diagBtn.addEventListener("click", () => this.toggleDiagnostics());
   }
 
   private setTool(tool: InteractionTool): void {
@@ -434,18 +969,7 @@ export class OneNoteItemView extends ItemView {
 
   private zoomBy(factor: number): void {
     if (!this.canvasHostEl || !this.renderer) return;
-    const rect = this.canvasHostEl.getBoundingClientRect();
-    const center = new Point(rect.width / 2, rect.height / 2);
-    this.renderer.zoomAt(center, factor);
-  }
-
-  private updateToolbarSelectionState(hasSelection: boolean): void {
-    if (!this.toolbarEl) return;
-    const zoomSelBtn = this.toolbarEl.querySelector(".onenote-btn-zoom-sel") as HTMLButtonElement;
-    if (zoomSelBtn) {
-      zoomSelBtn.disabled = !hasSelection;
-      zoomSelBtn.style.opacity = hasSelection ? "1.0" : "0.5";
-    }
+    this.renderer.zoomAt(new Point(48, 48), factor);
   }
 
   private createHud(container: HTMLElement): void {
@@ -455,74 +979,18 @@ export class OneNoteItemView extends ItemView {
 
   private updateHud(): void {
     if (!this.hudEl || !this.renderer) return;
-    const stats = this.renderer.getStats();
     const transform = this.renderer.getTransform();
     const zoomPct = Math.round(transform.scale * 100);
-
-    const x = Math.round(this.cursorScenePos.x);
-    const y = Math.round(this.cursorScenePos.y);
-
-    this.hudEl.setText(
-      `Zoom: ${zoomPct}% | Nodes: ${stats.visibleNodeCount}/${stats.totalNodeCount} | FPS: ${stats.fps} | (X: ${x}, Y: ${y})`
-    );
-  }
-
-  private createDiagnosticsDrawer(container: HTMLElement): void {
-    this.diagnosticsDrawerEl = container.createDiv({ cls: "onenote-diagnostics-drawer is-hidden" });
-  }
-
-  private toggleDiagnostics(): void {
-    if (!this.diagnosticsDrawerEl) return;
-    this.isDiagnosticsOpen = !this.isDiagnosticsOpen;
-
-    if (this.isDiagnosticsOpen) {
-      this.renderDiagnosticsContent();
-      this.diagnosticsDrawerEl.removeClass("is-hidden");
-    } else {
-      this.diagnosticsDrawerEl.addClass("is-hidden");
-    }
-  }
-
-  private renderDiagnosticsContent(): void {
-    if (!this.diagnosticsDrawerEl || !this.renderer) return;
-    this.diagnosticsDrawerEl.empty();
-
-    const header = this.diagnosticsDrawerEl.createDiv({ cls: "onenote-diag-header" });
-    header.createEl("h4", { text: "⚡ Spatial Engine Diagnostics & Telemetry" });
-
-    const closeBtn = header.createEl("button", { cls: "onenote-btn-icon", text: "✕" });
-    closeBtn.addEventListener("click", () => this.toggleDiagnostics());
-
-    const stats = this.renderer.getStats();
-    const statsList = this.diagnosticsDrawerEl.createDiv({ cls: "onenote-diag-stats" });
-    statsList.createEl("div", { text: `• Total Nodes: ${stats.totalNodeCount}` });
-    statsList.createEl("div", { text: `• Visible Nodes: ${stats.visibleNodeCount}` });
-    statsList.createEl("div", { text: `• Culled Nodes: ${stats.culledNodeCount ?? 0}` });
-    statsList.createEl("div", { text: `• Cached Textures: ${stats.textureCount}` });
-    statsList.createEl("div", { text: `• Sync Duration: ${stats.syncDurationMs ?? 0} ms` });
-    statsList.createEl("div", { text: `• Hit-Test Latency: ${stats.hitTestLatencyMs ?? 0} ms` });
-    statsList.createEl("div", { text: `• Render FPS: ${stats.fps} (${stats.frameTimeMs} ms)` });
-
-    // Show recent structured logs
-    const logSection = this.diagnosticsDrawerEl.createDiv({ cls: "onenote-diag-logs" });
-    logSection.createEl("h5", { text: "Recent Structured Logs" });
-
-    const entries: DiagnosticEntry[] = (logger as unknown as { entries?: DiagnosticEntry[] }).entries || [];
-    if (entries.length === 0) {
-      logSection.createEl("div", { cls: "onenote-log-empty", text: "No errors or warnings recorded." });
-    } else {
-      for (const entry of entries.slice(-10)) {
-        const item = logSection.createDiv({ cls: `onenote-log-item is-${entry.severity}` });
-        item.createEl("span", { cls: "onenote-log-badge", text: entry.code });
-        item.createEl("span", { cls: "onenote-log-msg", text: entry.message });
-      }
-    }
+    this.hudEl.setText(`Zoom: ${zoomPct}%`);
   }
 
   private createLoadingOverlay(container: HTMLElement): void {
     this.loadingOverlayEl = container.createDiv({ cls: "onenote-loading-overlay is-hidden" });
     this.loadingOverlayEl.createDiv({ cls: "onenote-spinner" });
-    this.loadingOverlayEl.createDiv({ cls: "onenote-loading-text", text: "Loading spatial page..." });
+    this.loadingOverlayEl.createDiv({
+      cls: "onenote-loading-text",
+      text: "Loading spatial page...",
+    });
   }
 
   private showLoading(show: boolean): void {
@@ -534,246 +1002,10 @@ export class OneNoteItemView extends ItemView {
     }
   }
 
-  /**
-   * Demo Scene with overlapping photos, handwritten ink annotations, arrows, and tables.
-   */
-  private loadSampleDemoNotebook(): void {
-    const samplePage1: CanonicalPage = {
-      id: "page_sample_01" as PageId,
-      title: "Quarterly Strategy & Spatial Layout",
-      pageLevel: 0,
-      createdTime: Date.now() - 3600000,
-      modifiedTime: Date.now(),
-      pageWidth: 1600,
-      pageHeight: 2000,
-      canvasStyle: {
-        backgroundColor: "#FCFCFA",
-        ruleLines: {
-          kind: "college",
-          color: "#E5E7EB",
-          spacing: 28,
-          marginX: 96,
-        },
-      },
-      elements: [
-        // 1. Heading Text
-        {
-          type: "outline",
-          id: "outline_h1" as any,
-          bounds: { x: 120, y: 80, width: 800, height: 120, zIndex: 1 },
-          paragraphs: [
-            {
-              id: "p1" as any,
-              indentLevel: 0,
-              runs: [
-                {
-                  text: "Quarterly Spatial Architecture",
-                  style: { fontSize: 24, bold: true, fontColor: "#111827" },
-                },
-              ],
-            },
-            {
-              id: "p2" as any,
-              indentLevel: 0,
-              runs: [
-                {
-                  text: "Freeform spatial document canvas preserving exact positions, layering, and annotations.",
-                  style: { fontSize: 13, fontColor: "#4B5563" },
-                },
-              ],
-            },
-          ],
-        },
-
-        // 2. Pasted Photograph (Simulated Image)
-        {
-          type: "image",
-          id: "img_photo_01" as any,
-          bounds: { x: 120, y: 220, width: 500, height: 320, zIndex: 5 },
-          assetId: "asset_photo_01" as any,
-          mimeType: "image/png",
-        },
-
-        // 3. Handwritten Ink Annotations Over the Photograph
-        {
-          type: "ink",
-          id: "ink_annotation_over_photo" as any,
-          bounds: { x: 140, y: 240, width: 440, height: 260, zIndex: 25 },
-          isHighlighter: false,
-          strokes: [
-            {
-              id: "stroke_circle_focus" as any,
-              color: "#EF4444", // Red pen circled over image
-              width: 3.5,
-              points: [
-                { x: 180, y: 300 },
-                { x: 260, y: 270 },
-                { x: 340, y: 310 },
-                { x: 310, y: 400 },
-                { x: 200, y: 420 },
-                { x: 180, y: 300 },
-              ],
-            },
-            {
-              id: "stroke_arrow_callout" as any,
-              color: "#EF4444",
-              width: 3,
-              points: [
-                { x: 340, y: 310 },
-                { x: 440, y: 260 },
-              ],
-            },
-          ],
-        },
-
-        // 4. Directional Arrow Shape
-        {
-          type: "shape",
-          id: "arrow_pointer" as any,
-          bounds: { x: 640, y: 320, width: 120, height: 80, zIndex: 10 },
-          shapeKind: "arrow",
-          strokeColor: "#2563EB",
-          strokeWidth: 3,
-        },
-
-        // 5. Annotated Box Callout with Text
-        {
-          type: "shape",
-          id: "callout_box" as any,
-          bounds: { x: 780, y: 260, width: 420, height: 220, zIndex: 8 },
-          shapeKind: "rectangle",
-          fillColor: "#EFF6FF",
-          strokeColor: "#3B82F6",
-          strokeWidth: 2,
-        },
-        {
-          type: "outline",
-          id: "callout_text" as any,
-          bounds: { x: 800, y: 280, width: 380, height: 180, zIndex: 15 },
-          paragraphs: [
-            {
-              id: "p3" as any,
-              indentLevel: 0,
-              runs: [
-                {
-                  text: "Key Architectural Highlights",
-                  style: { fontSize: 14, bold: true, fontColor: "#1E40AF" },
-                },
-              ],
-            },
-            {
-              id: "p4" as any,
-              indentLevel: 0,
-              bulletType: "checkbox",
-              isTaskChecked: true,
-              runs: [{ text: "Infinite 2.5D spatial canvas", style: { fontSize: 12 } }],
-            },
-            {
-              id: "p5" as any,
-              indentLevel: 0,
-              bulletType: "checkbox",
-              isTaskChecked: true,
-              runs: [{ text: "Ink rendered on top of images", style: { fontSize: 12 } }],
-            },
-            {
-              id: "p6" as any,
-              indentLevel: 0,
-              bulletType: "checkbox",
-              isTaskChecked: true,
-              runs: [{ text: "Interactive selection & zooming", style: { fontSize: 12 } }],
-            },
-          ],
-        },
-
-        // 6. Data Table
-        {
-          type: "table",
-          id: "table_metrics" as any,
-          bounds: { x: 120, y: 580, width: 680, height: 180, zIndex: 6 },
-          columns: [{ width: 220 }, { width: 230 }, { width: 230 }],
-          rows: [
-            {
-              id: "r1" as any,
-              cells: [
-                { id: "c1" as any, elements: [] },
-                { id: "c2" as any, elements: [] },
-                { id: "c3" as any, elements: [] },
-              ],
-            },
-            {
-              id: "r2" as any,
-              cells: [
-                { id: "c4" as any, elements: [] },
-                { id: "c5" as any, elements: [] },
-                { id: "c6" as any, elements: [] },
-              ],
-            },
-          ],
-        },
-
-        // 7. File Attachment Badge
-        {
-          type: "attachment",
-          id: "att_doc" as any,
-          bounds: { x: 840, y: 580, width: 260, height: 48, zIndex: 10 },
-          assetId: "asset_spec_pdf" as any,
-          fileName: "OneNote_Specification_v1.pdf",
-          fileSizeBytes: 2048576,
-        },
-      ],
-    };
-
-    const samplePage2: CanonicalPage = {
-      id: "page_sample_02" as PageId,
-      title: "Component Breakdown & Diagrams",
-      pageLevel: 0,
-      createdTime: Date.now() - 1800000,
-      modifiedTime: Date.now(),
-      pageWidth: 1400,
-      pageHeight: 1600,
-      canvasStyle: {
-        backgroundColor: "#FFFFFF",
-        ruleLines: { kind: "small-grid", color: "#F3F4F6", spacing: 20 },
-      },
-      elements: [
-        {
-          type: "outline",
-          id: "outline_p2" as any,
-          bounds: { x: 100, y: 100, width: 600, height: 100, zIndex: 1 },
-          paragraphs: [
-            {
-              id: "p2_1" as any,
-              indentLevel: 0,
-              runs: [{ text: "Component Architecture", style: { fontSize: 20, bold: true } }],
-            },
-          ],
-        },
-        {
-          type: "shape",
-          id: "shape_rect1" as any,
-          bounds: { x: 100, y: 220, width: 260, height: 140, zIndex: 2 },
-          shapeKind: "rectangle",
-          fillColor: "#F9FAFB",
-          strokeColor: "#10B981",
-          strokeWidth: 2,
-        },
-      ],
-    };
-
-    const demoNotebook: CanonicalNotebook = {
-      id: "nb_demo_01" as any,
-      title: "OneNote Project Notebook",
-      sectionGroups: [],
-      sections: [
-        {
-          id: "sec_demo_01" as any,
-          name: "General Strategy",
-          isEncrypted: false,
-          pages: [samplePage1, samplePage2],
-        },
-      ],
-    };
-
-    this.loadNotebook(demoNotebook);
+  public navigateToStickyNote(
+    noteId: import("../model/Ids").StickyNoteId,
+    options?: { zoom?: number }
+  ): boolean {
+    return this.renderer?.focusNode(noteId as any, options) ?? false;
   }
 }

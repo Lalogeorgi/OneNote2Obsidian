@@ -1,7 +1,18 @@
 import { DiagnosticCode } from "../diagnostics/DiagnosticTypes";
 import { logger } from "../diagnostics/Logger";
 import { Rectangle } from "../geometry/Rectangle";
-import { PageScene, PageSceneNode } from "./PageScene";
+import { CanonicalStickyNote } from "../model/CanonicalStickyNote";
+import { StickyNoteUtils } from "../model/StickyNoteUtils";
+import {
+  PageScene,
+  PageSceneNode,
+  SceneAnnotationNode,
+  SceneGroupNode,
+  SceneStickyNoteNode,
+} from "./PageScene";
+import { SceneBuilder } from "./SceneBuilder";
+import { CanonicalSpatialGroup } from "../model/CanonicalSpatialGroup";
+import { CanonicalSpatialAnnotation } from "../model/CanonicalAnnotation";
 
 export interface SerializedOneCanvas {
   $schema: string;
@@ -27,6 +38,8 @@ export interface SerializedOneCanvas {
     };
   };
   nodes: SerializedSceneNode[];
+  groups?: CanonicalSpatialGroup[];
+  annotations?: CanonicalSpatialAnnotation[];
 }
 
 export interface SerializedSceneNode {
@@ -45,6 +58,19 @@ export interface SerializedSceneNode {
   assetId?: string;
   mimeType?: string;
   fileName?: string;
+  title?: string;
+  color?: string;
+  headerColor?: string;
+  textColor?: string;
+  borderColor?: string;
+  isPinned?: boolean;
+  isFolded?: boolean;
+  anchor?: unknown;
+  grouping?: unknown;
+  memberIds?: readonly string[];
+  semanticKind?: string;
+  content?: string;
+  style?: unknown;
 }
 
 export class PageSceneSerializer {
@@ -56,23 +82,47 @@ export class PageSceneSerializer {
    * Deterministically serialize a PageScene to a JSON string with versioned schema.
    */
   public static serialize(scene: PageScene, indent = 2): string {
-    const rawNodes: SerializedSceneNode[] = scene.nodes.map((n) => ({
-      id: n.id,
-      layer: n.layer,
-      x: Number(n.bounds.x.toFixed(2)),
-      y: Number(n.bounds.y.toFixed(2)),
-      width: Number(n.bounds.width.toFixed(2)),
-      height: Number(n.bounds.height.toFixed(2)),
-      zIndex: n.zIndex,
-      visible: n.visible,
-      opacity: n.opacity,
-      rotation: n.rotation,
-      element: (n as { element?: unknown }).element,
-      renderedHtml: (n as { renderedHtml?: string }).renderedHtml,
-      assetId: (n as { assetId?: string }).assetId,
-      mimeType: (n as { mimeType?: string }).mimeType,
-      fileName: (n as { fileName?: string }).fileName,
-    }));
+    const rawNodes: SerializedSceneNode[] = scene.nodes.map((n) => {
+      const isSticky = n.layer === "stickyNotes";
+      const stickyNode = isSticky ? (n as SceneStickyNoteNode) : undefined;
+      const isGroup = n.layer === "spatialGroups";
+      const groupNode = isGroup ? (n as SceneGroupNode) : undefined;
+      const isAnnot = n.layer === "annotations";
+      const annotNode = isAnnot ? (n as SceneAnnotationNode) : undefined;
+      const opacity =
+        typeof n.opacity === "number" ? StickyNoteUtils.clampOpacity(n.opacity) : undefined;
+
+      return {
+        id: n.id,
+        layer: n.layer,
+        x: Number(n.bounds.x.toFixed(2)),
+        y: Number(n.bounds.y.toFixed(2)),
+        width: Number(n.bounds.width.toFixed(2)),
+        height: Number(n.bounds.height.toFixed(2)),
+        zIndex: n.zIndex,
+        visible: n.visible,
+        opacity,
+        rotation: n.rotation,
+        element: (n as { element?: unknown }).element,
+        renderedHtml: (n as { renderedHtml?: string }).renderedHtml,
+        assetId: (n as { assetId?: string }).assetId,
+        mimeType: (n as { mimeType?: string }).mimeType,
+        fileName: (n as { fileName?: string }).fileName,
+        title: stickyNode?.title || groupNode?.title,
+        color: stickyNode?.color,
+        headerColor: stickyNode?.headerColor,
+        textColor: stickyNode?.textColor,
+        borderColor: stickyNode?.borderColor,
+        isPinned: stickyNode?.isPinned,
+        isFolded: stickyNode?.isFolded,
+        anchor: stickyNode?.anchor,
+        grouping: (stickyNode?.element as any)?.grouping,
+        memberIds: groupNode?.memberIds,
+        semanticKind: annotNode?.semanticKind,
+        content: annotNode?.content,
+        style: groupNode?.style || annotNode?.style,
+      };
+    });
 
     // Sort nodes deterministically by zIndex and ID
     rawNodes.sort((a, b) => {
@@ -98,13 +148,15 @@ export class PageSceneSerializer {
             }
           : undefined,
         bounds: {
-          x: Number(scene.canvasBounds.x.toFixed(2)),
-          y: Number(scene.canvasBounds.y.toFixed(2)),
-          width: Number(scene.canvasBounds.width.toFixed(2)),
-          height: Number(scene.canvasBounds.height.toFixed(2)),
+          x: scene.canvasBounds.x,
+          y: scene.canvasBounds.y,
+          width: scene.canvasBounds.width,
+          height: scene.canvasBounds.height,
         },
       },
       nodes: rawNodes,
+      groups: scene.groups,
+      annotations: scene.annotations,
     };
 
     return JSON.stringify(doc, PageSceneSerializer.deterministicReplacer, indent);
@@ -139,6 +191,105 @@ export class PageSceneSerializer {
         rotation: n.rotation,
       };
 
+      if (n.layer === "stickyNotes" || (n.element as any)?.type === "stickyNote") {
+        const canonicalSticky: CanonicalStickyNote = StickyNoteUtils.normalizeStickyNote({
+          ...(typeof n.element === "object" && n.element !== null ? n.element : {}),
+          id: n.id,
+          bounds,
+          title: n.title,
+          opacity: n.opacity,
+          isPinned: n.isPinned,
+          isFolded: n.isFolded,
+        });
+
+        const colors = StickyNoteUtils.resolveStickyNoteColors(
+          n.color || canonicalSticky.color,
+          canonicalSticky.theme
+        );
+
+        const renderedHtml =
+          n.renderedHtml || SceneBuilder.renderStickyNoteHtml(canonicalSticky, colors);
+
+        const stickyNode: SceneStickyNoteNode = {
+          id: canonicalSticky.id,
+          layer: "stickyNotes",
+          bounds,
+          aabb,
+          zIndex: n.zIndex,
+          visible: n.visible !== false,
+          opacity: canonicalSticky.opacity,
+          rotation: n.rotation,
+          element: canonicalSticky,
+          title: canonicalSticky.title,
+          text: canonicalSticky.content,
+          renderedHtml,
+          color: colors.background,
+          headerColor: n.headerColor || colors.header,
+          textColor: n.textColor || colors.text,
+          borderColor: n.borderColor || colors.border,
+          isPinned: canonicalSticky.spatialMeta?.isPinned,
+          isFolded: canonicalSticky.spatialMeta?.isFolded,
+          anchor: canonicalSticky.anchor || (n.anchor as any),
+        };
+
+        return stickyNode;
+      }
+
+      if (n.layer === "spatialGroups") {
+        const groupNode: SceneGroupNode = {
+          id: n.id as PageSceneNode["id"],
+          layer: "spatialGroups",
+          bounds,
+          aabb,
+          zIndex: n.zIndex,
+          visible: n.visible !== false,
+          opacity: n.opacity,
+          rotation: n.rotation,
+          element: (n.element as any) || {
+            type: "spatialGroup",
+            id: n.id,
+            title: n.title || "Group",
+            bounds,
+            memberIds: n.memberIds || [],
+            groupRole: "frame",
+            style: n.style,
+            createdTime: Date.now(),
+            modifiedTime: Date.now(),
+          },
+          title: n.title || "Group",
+          memberIds: (n.memberIds || []) as any,
+          style: n.style as any,
+        };
+        return groupNode;
+      }
+
+      if (n.layer === "annotations") {
+        const annotNode: SceneAnnotationNode = {
+          id: n.id as PageSceneNode["id"],
+          layer: "annotations",
+          bounds,
+          aabb,
+          zIndex: n.zIndex,
+          visible: n.visible !== false,
+          opacity: n.opacity,
+          rotation: n.rotation,
+          element: (n.element as any) || {
+            type: "annotation",
+            id: n.id,
+            semanticKind: n.semanticKind || "commentary",
+            target: { targetType: "region", regionBounds: bounds },
+            content: n.content || "",
+            style: n.style,
+            createdTime: Date.now(),
+            modifiedTime: Date.now(),
+          },
+          semanticKind: (n.semanticKind as any) || "commentary",
+          content: n.content || "",
+          style: n.style as any,
+        };
+        return annotNode;
+      }
+
       const base = {
         id: n.id as PageSceneNode["id"],
         layer: n.layer as PageSceneNode["layer"],
@@ -172,6 +323,8 @@ export class PageSceneSerializer {
         ruleLines: doc.canvas.ruleLines as PageScene["canvasStyle"]["ruleLines"],
       },
       nodes,
+      groups: doc.groups,
+      annotations: doc.annotations,
       version: doc.version,
     };
   }
@@ -240,6 +393,13 @@ export class PageSceneSerializer {
       assetId: n.assetId,
       mimeType: n.mimeType,
       fileName: n.fileName,
+      title: n.title,
+      color: n.color,
+      headerColor: n.headerColor,
+      textColor: n.textColor,
+      borderColor: n.borderColor,
+      isPinned: n.isPinned,
+      isFolded: n.isFolded,
     }));
 
     return {

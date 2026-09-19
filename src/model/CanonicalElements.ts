@@ -1,14 +1,15 @@
 import { SpatialBounds } from "../geometry/Bounds";
 import { AssetId, ObjectId } from "./Ids";
+import type { CanonicalStickyNote } from "./CanonicalStickyNote";
 
 /**
  * Text Run formatting styling flags and attributes.
  */
 export interface CanonicalTextStyle {
   readonly fontFamily?: string;
-  readonly fontSize?: number;        // Points (pt)
-  readonly fontColor?: string;       // Hex (#000000)
-  readonly highlightColor?: string;  // Hex (#FFFF00)
+  readonly fontSize?: number; // Points (pt)
+  readonly fontColor?: string; // Hex (#000000)
+  readonly highlightColor?: string; // Hex (#FFFF00)
   readonly bold?: boolean;
   readonly italic?: boolean;
   readonly underline?: boolean;
@@ -19,7 +20,7 @@ export interface CanonicalTextStyle {
 
 export interface CanonicalHyperlink {
   readonly type: "external" | "internal-page" | "internal-paragraph";
-  readonly target: string;           // URL or target PageId/ObjectId
+  readonly target: string; // URL or target PageId/ObjectId
   readonly title?: string;
 }
 
@@ -29,12 +30,25 @@ export interface CanonicalTextRun {
   readonly hyperlink?: CanonicalHyperlink;
 }
 
-export type BulletType = "none" | "disc" | "number" | "checkbox";
+export type BulletType =
+  | "none"
+  | "disc"
+  | "circle"
+  | "square"
+  | "diamond"
+  | "arrow"
+  | "dash"
+  | "star"
+  | "number"
+  | "letter"
+  | "roman"
+  | "checkbox";
 
 export interface CanonicalParagraph {
   readonly id: ObjectId;
   readonly indentLevel: number;
   readonly bulletType?: BulletType;
+  readonly bulletChar?: string;
   readonly isTaskChecked?: boolean;
   readonly runs: readonly CanonicalTextRun[];
 }
@@ -72,11 +86,18 @@ export interface CanonicalInkPoint {
   readonly pressure?: number; // 0.0 to 1.0 (defaults to 0.5)
 }
 
+export type NoveltyInkEffect =
+  "rainbow" | "galaxy" | "gold" | "silver" | "lava" | "ocean" | "rose_gold";
+
+export type PenType = "ballpoint" | "gel" | "highlighter" | "pencil";
+
 export interface CanonicalStroke {
   readonly id: ObjectId;
-  readonly color: string;     // Hex (#000000)
-  readonly width: number;     // Stroke width in logical points
+  readonly color: string; // Hex (#000000)
+  readonly width: number; // Stroke width in logical points
   readonly points: readonly CanonicalInkPoint[];
+  readonly penType?: PenType;
+  readonly noveltyEffect?: NoveltyInkEffect;
 }
 
 /**
@@ -88,6 +109,8 @@ export interface CanonicalInkStrokeGroup {
   readonly bounds: SpatialBounds;
   readonly isHighlighter: boolean;
   readonly strokes: readonly CanonicalStroke[];
+  readonly penType?: PenType;
+  readonly noveltyEffect?: NoveltyInkEffect;
 }
 
 /**
@@ -132,12 +155,17 @@ export interface CanonicalAttachment {
  */
 export type ShapeKind =
   | "rectangle"
+  | "rounded_rectangle"
   | "ellipse"
   | "line"
   | "arrow"
-  | "callout"
+  | "double_arrow"
+  | "triangle"
+  | "right_triangle"
+  | "diamond"
   | "star"
-  | "diamond";
+  | "callout"
+  | "coordinate_system";
 
 export interface CanonicalShape {
   readonly type: "shape";
@@ -171,4 +199,5 @@ export type CanonicalElement =
   | CanonicalTable
   | CanonicalAttachment
   | CanonicalShape
-  | CanonicalMedia;
+  | CanonicalMedia
+  | CanonicalStickyNote;

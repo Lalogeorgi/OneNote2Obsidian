@@ -3,6 +3,7 @@ import { DiagnosticCode } from "../diagnostics/DiagnosticTypes";
 import { logger } from "../diagnostics/Logger";
 import { CancellationTokenSource } from "../parser/Cancellation";
 import { ProgressCallback, ProgressUpdate } from "../parser/Progress";
+import { PARSER_METRICS_DEFAULTS } from "../constants/ParserConstants";
 
 export interface ImportModalOptions {
   onStartImport: (
@@ -16,7 +17,7 @@ export interface ImportModalOptions {
 
 export class ImportProgressModal extends Modal {
   private selectedFile: File | null = null;
-  private targetFolder = "OneNote Imports";
+  private targetFolder: string = PARSER_METRICS_DEFAULTS.DEFAULT_IMPORT_FOLDER;
   private isImporting = false;
   private cts: CancellationTokenSource | null = null;
 
@@ -41,7 +42,7 @@ export class ImportProgressModal extends Modal {
     contentEl.empty();
     contentEl.addClass("onenote-import-modal");
 
-    contentEl.createEl("h2", { text: "Import Microsoft OneNote Notebook" });
+    contentEl.createEl("h2", { text: "Import Notebook or Section" });
 
     this.formContainerEl = contentEl.createDiv({ cls: "onenote-import-form" });
     this.renderForm();
@@ -60,7 +61,7 @@ export class ImportProgressModal extends Modal {
     this.formContainerEl.empty();
 
     new Setting(this.formContainerEl)
-      .setName("Select OneNote File or Package")
+      .setName("Select File or Package")
       .setDesc("Choose a .one section or a .onepkg notebook archive")
       .addButton((btn) => {
         btn.setButtonText("Choose File").onClick(() => {
@@ -82,7 +83,7 @@ export class ImportProgressModal extends Modal {
       .setDesc("Relative vault folder path where imported notes and assets will be stored")
       .addText((text) => {
         text.setValue(this.targetFolder).onChange((val) => {
-          this.targetFolder = val.trim() || "OneNote Imports";
+          this.targetFolder = val.trim() || PARSER_METRICS_DEFAULTS.DEFAULT_IMPORT_FOLDER;
         });
       });
 
@@ -92,7 +93,7 @@ export class ImportProgressModal extends Modal {
         .setCta()
         .onClick(async () => {
           if (!this.selectedFile) {
-            new Notice("Please select a OneNote (.one or .onepkg) file first.");
+            new Notice("Please select a file (.one or .onepkg) first.");
             return;
           }
           await this.startImportProcess();
@@ -187,24 +188,24 @@ export class ImportProgressModal extends Modal {
         text: "The import operation was cancelled. All temporary staging files have been safely removed.",
       });
     } else {
-      logger.error(
-        DiagnosticCode.PARSER_CORRUPT_CHUNK,
-        "Import failed during execution",
-        { error: err.message }
-      );
+      logger.error(DiagnosticCode.PARSER_CORRUPT_CHUNK, "Import failed during execution", {
+        error: err.message,
+      });
 
       this.errorContainerEl.createEl("h3", { text: "Import Failed" });
       this.errorContainerEl.createEl("p", {
         cls: "onenote-error-msg",
-        text: err.message || "An unexpected error occurred during binary parsing or archive extraction.",
+        text:
+          err.message ||
+          "An unexpected error occurred during binary parsing or archive extraction.",
       });
 
       const suggestions = this.errorContainerEl.createEl("ul");
       suggestions.createEl("li", {
-        text: "If this is a password-protected notebook section, unlock and export it in OneNote first.",
+        text: "If this is a password-protected section, unlock and export it first.",
       });
       suggestions.createEl("li", {
-        text: "If this is an old OneNote 2003/2007 format, upgrade the notebook to OneNote 2010-2016 format in Microsoft OneNote.",
+        text: "If this is an older legacy format, upgrade the notebook to 2010-2016 format before importing.",
       });
       suggestions.createEl("li", {
         text: "Ensure you have sufficient disk space in your Obsidian vault directory.",

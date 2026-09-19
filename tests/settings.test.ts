@@ -7,7 +7,7 @@ import { OneNoteSettingsTab } from "../src/settings/OneNoteSettingsTab";
 describe("OneNote Settings & Tab", () => {
   it("provides valid default configuration", () => {
     expect(DEFAULT_SETTINGS.defaultViewMode).toBe("spatial");
-    expect(DEFAULT_SETTINGS.rootImportFolder).toBe("OneNote");
+    expect(DEFAULT_SETTINGS.rootImportFolder).toBe("OneNote2Obsidian");
     expect(DEFAULT_SETTINGS.attachmentFolder).toBe("attachments");
     expect(DEFAULT_SETTINGS.duplicateStrategy).toBe("skip");
     expect(DEFAULT_SETTINGS.enableHighDpi).toBe(true);
@@ -21,6 +21,6 @@ describe("OneNote Settings & Tab", () => {
     tab.display();
 
     expect(tab.containerEl.querySelector("h2")).not.toBeNull();
-    expect(tab.containerEl.textContent).toContain("OneNote to Obsidian Spatial Engine Settings");
+    expect(tab.containerEl.textContent).toContain("Canvas Settings");
   });
 });

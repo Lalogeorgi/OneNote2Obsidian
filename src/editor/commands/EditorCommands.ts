@@ -35,6 +35,24 @@ export class MoveNodesCommand implements IEditorCommand {
           node.bounds.width,
           node.bounds.height
         );
+        // Translate vector stroke points for ink nodes
+        if (
+          node.layer === "topInk" ||
+          node.layer === "bottomInk" ||
+          (node.element && (node.element as any).type === "ink")
+        ) {
+          const inkGroup = (node as any).element;
+          if (inkGroup && inkGroup.strokes) {
+            for (const stroke of inkGroup.strokes) {
+              if (stroke.points) {
+                for (const pt of stroke.points) {
+                  (pt as any).x += this.deltaX;
+                  (pt as any).y += this.deltaY;
+                }
+              }
+            }
+          }
+        }
       }
     }
     this.onMutate?.();
@@ -55,6 +73,24 @@ export class MoveNodesCommand implements IEditorCommand {
           node.bounds.width,
           node.bounds.height
         );
+        // Revert vector stroke points for ink nodes
+        if (
+          node.layer === "topInk" ||
+          node.layer === "bottomInk" ||
+          (node.element && (node.element as any).type === "ink")
+        ) {
+          const inkGroup = (node as any).element;
+          if (inkGroup && inkGroup.strokes) {
+            for (const stroke of inkGroup.strokes) {
+              if (stroke.points) {
+                for (const pt of stroke.points) {
+                  (pt as any).x -= this.deltaX;
+                  (pt as any).y -= this.deltaY;
+                }
+              }
+            }
+          }
+        }
       }
     }
     this.onMutate?.();
@@ -183,8 +219,15 @@ export class ZOrderCommand implements IEditorCommand {
     }
 
     const idsSet = new Set(this.nodeIds);
-    const maxZ = Math.max(...this.scene.nodes.map((n) => n.zIndex), 0);
-    const minZ = Math.min(...this.scene.nodes.map((n) => n.zIndex), 0);
+    const otherNodes = this.scene.nodes.filter((n) => !idsSet.has(n.id));
+    const maxZ =
+      otherNodes.length > 0
+        ? Math.max(...otherNodes.map((n) => n.zIndex))
+        : Math.max(...this.scene.nodes.map((n) => n.zIndex), 0);
+    const minZ =
+      otherNodes.length > 0
+        ? Math.min(...otherNodes.map((n) => n.zIndex))
+        : Math.min(...this.scene.nodes.map((n) => n.zIndex), 0);
 
     for (const node of this.scene.nodes) {
       if (idsSet.has(node.id)) {
@@ -193,7 +236,15 @@ export class ZOrderCommand implements IEditorCommand {
             node.zIndex = maxZ + 1;
             break;
           case "sendToBack":
-            node.zIndex = Math.max(0, minZ - 1);
+            if (minZ > 0) {
+              node.zIndex = minZ - 1;
+            } else {
+              for (const on of otherNodes) {
+                on.zIndex += 1;
+                on.bounds = { ...on.bounds, zIndex: on.zIndex };
+              }
+              node.zIndex = 0;
+            }
             break;
           case "bringForward":
             node.zIndex += 1;

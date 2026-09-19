@@ -51,7 +51,7 @@ export class CabExtractor {
     }
 
     reader.position += 4; // reserved1
-    reader.readUint32();  // cbCabinet
+    reader.readUint32(); // cbCabinet
     reader.position += 4; // reserved2
     const coffFiles = reader.readUint32();
     reader.position += 4; // reserved3
@@ -60,8 +60,8 @@ export class CabExtractor {
     const cFolders = reader.readUint16();
     const cFiles = reader.readUint16();
     const flags = reader.readUint16();
-    reader.readUint16();  // setID
-    reader.readUint16();  // iCabinet
+    reader.readUint16(); // setID
+    reader.readUint16(); // iCabinet
 
     if (versionMajor !== 1 || (versionMinor !== 3 && versionMinor !== 0)) {
       logger.warn(
@@ -239,7 +239,10 @@ export class CabExtractor {
           const decompressed = await CabExtractor.inflateRaw(rawDeflate);
 
           // Check decompression expansion ratio
-          if (compData.length > 0 && decompressed.length / compData.length > policy.maxCompressionRatio) {
+          if (
+            compData.length > 0 &&
+            decompressed.length / compData.length > policy.maxCompressionRatio
+          ) {
             throw new ParserError(
               `Decompression bomb detected: expansion ratio (${(decompressed.length / compData.length).toFixed(1)}x) exceeds limit (${policy.maxCompressionRatio}x)`,
               DiagnosticCode.PARSER_CAB_EXTRACTION_FAILED

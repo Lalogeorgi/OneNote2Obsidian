@@ -39,12 +39,7 @@ export class FormatDetector {
 
     // 1. Check Cabinet Magic (MSCF)
     const magic = reader.peekBytes(4);
-    if (
-      magic[0] === 0x4d &&
-      magic[1] === 0x53 &&
-      magic[2] === 0x43 &&
-      magic[3] === 0x46
-    ) {
+    if (magic[0] === 0x4d && magic[1] === 0x53 && magic[2] === 0x43 && magic[3] === 0x46) {
       return {
         isValid: true,
         fileType: OneNoteFileType.PACKAGE_CAB,

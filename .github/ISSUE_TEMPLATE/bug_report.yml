@@ -1,0 +1,80 @@
+name: Bug Report
+description: Report an issue or unexpected behavior in OneNote2Obsidian
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug! Please search existing issues before submitting to avoid duplicates.
+        **Important:** Never upload real OneNote files containing sensitive, personal, or confidential information.
+  - type: input
+    id: version
+    attributes:
+      label: OneNote2Obsidian Plugin Version
+      description: What version of the plugin are you using?
+      placeholder: e.g. 0.2.0-alpha
+    validations:
+      required: true
+  - type: input
+    id: obsidian_version
+    attributes:
+      label: Obsidian App Version
+      description: Which Obsidian version are you running?
+      placeholder: e.g. 1.7.7 Desktop
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - Windows 10/11
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux
+    validations:
+      required: true
+  - type: dropdown
+    id: onenote_source
+    attributes:
+      label: OneNote Notebook Format
+      options:
+        - OneNote Section (.one) [2010–2016 / 365 format]
+        - OneNote Package (.onepkg) [MSCF Cabinet format]
+        - Notebook Table of Contents (.onetoc2)
+        - Other / Unknown
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description of the Bug
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Step-by-step instructions to reproduce the issue.
+      placeholder: |
+        1. Open OneNote2Obsidian ribbon
+        2. Click 'Import Section (.one)'
+        3. Select notebook file
+        4. See error...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Console Logs / Diagnostics
+      description: Any error messages from Developer Tools console (Ctrl+Shift+I / Cmd+Opt+I) or diagnostics modal.
+      render: shell

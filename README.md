@@ -2,11 +2,14 @@
 
 [![Obsidian Plugin](https://img.shields.io/badge/Obsidian-Plugin-blue.svg)](https://obsidian.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![CI Tests](https://img.shields.io/badge/Tests-34%2F34%20Passed-brightgreen.svg)]()
+[![CI Tests](https://img.shields.io/badge/Tests-67%20Suites%20%2F%20340%20Passed-brightgreen.svg)]()
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue.svg)]()
 [![Status](https://img.shields.io/badge/Status-Alpha%20%2F%20In%20Active%20Development-orange.svg)]()
 
 **OneNote2Obsidian** is an open-source Obsidian plugin designed to import Microsoft OneNote `.one` and `.onepkg` files while **preserving their freeform spatial canvas** — including positioned text frames, images, handwriting/ink, arrows, drawings, tables, file attachments, and multi-layer overlapping annotations — using **PixiJS** as the high-performance spatial rendering engine.
+Includes also **Floating Sticky Note Windows** with synchronized Markdown projection.
+
+[![On2Od](https://github.com/docs/On2Od.gif)]
 
 ---
 
@@ -38,27 +41,33 @@ Traditional document converters flatten OneNote notebooks into linear plain Mark
 
 ## 🚀 Key Features
 
-### 1. High-Fidelity Spatial Canvas
+### 1. High-Fidelity Drawing Import Parity
+- **Accurate Binary Extraction**: Direct extraction of authentic 24-bit RGB stroke colors (`0x340f`) and HIMETRIC float dimensions (`0x340c`) converted to screen pixels.
+- **Intelligent Tool Classification (`penType`)**: Distinguishes between highlighters, ballpoint pens, gel pens, and pencils based on OneNote ISF stream flags, palette colors, and stroke widths.
+- **OneNote Palette Matching**: Native support for OneNote highlighter tones (yellow, green, cyan, pink, orange, lavender) with multiply blending on bottom ink layers.
+
+### 2. Sticky Notes & Knowledge Layer
+- **Sticky Notes**: Sticky notes exist as native canvas objects with customizable color presets (Yellow, Green, Blue, Purple, Pink, Orange, Charcoal), collapsible titles, embedded rich text formatting toolbars, and synchronized Markdown projection.
+- **Mandatory Variable Opacity & Transparency**: Real-time opacity slider and quick presets (from 20% transparent glass mode for viewing underlying drawings/diagrams to 100% solid opacity), synchronized smoothly into PixiJS display objects and DOM text overlays.
+- **Floating Sticky Note Windows**: Any sticky note is an independent floating desktop window (`FloatingStickyNoteWindow`) with always-on-top pinning, live two-way canvas synchronization, and automatic position restoration.
+- **Sticky Notes Hub**: Dedicated central search modal (`StickyNotesHubModal`) and dockable view (`OneNoteStickyNoteView`) for filtering, previewing, and navigating to any note across your entire notebook library.
+- **Spatial Anchors & Annotations**: Bind handwritten ink annotations, highlighters, or comments directly to pictures, tables, or text outlines so they remain locked together during canvas drag and transform operations.
+- **Spatial Groups**: Multi-element hierarchical grouping allowing coordinated movement, z-ordering, and structured layout management.
+- **Spatial Backlinks & Link Graph**: Interactive visual links connecting spatial canvas elements directly to corresponding Obsidian Markdown vault notes.
+- **Page Properties & Frontmatter Sync**: Real-time YAML frontmatter editing and canvas metadata management via the interactive Page Properties Modal.
+
+### 5. Spatial Canvas & Architecture
 - **PixiJS v8 Rendering Pipeline**: Decoupled 2.5D GPU canvas with a 9-layer scene graph (Page Background, Images, Vector Ink, Outlines/Text, Tables, Shapes, Attachments, Selection Gizmos, HUD).
-- **Catmull-Rom Vector Ink**: Pressure-sensitive freehand pens and highlighters with authentic color blending and Catmull-Rom curve smoothing.
-- **Sticky Notes & Quick Notes**: Freeform note boxes with custom background tints and draggable placement anywhere on the canvas.
-- **Spatial Anchors & Annotation Groups**: Bind annotations and handwritten ink notes to specific images, shapes, or paragraphs so they move and scale together.
-- **Spatial Backlinks**: Interactive links connecting spatial canvas elements directly to corresponding Obsidian Markdown notes.
+- **Catmull-Rom Vector Ink**: Pressure-sensitive freehand handwriting with authentic color blending and Catmull-Rom curve smoothing.
+- **Interactive Transform Gizmo**: 8-point interactive resize, rotate, and translation gizmo with aspect-ratio locking.
 
-### 2. Interactive Editing Engine
-- **8-Point Transform Gizmo**: Move, resize, and lock aspect ratios for outlines, shapes, and images.
-- **In-Place Rich Text Editing**: Double-click any text frame to edit content directly in a seamless DOM textarea overlay.
-- **Live Ink Tools**: Pen, translucent highlighter, stroke width presets, color swatches, and a geometric stroke eraser.
-- **Reversible History**: Full undo/redo stack (`Ctrl+Z` / `Ctrl+Y`) with transactional command grouping.
-- **Spatial Clipboard**: Cut, copy, paste, and duplicate (`Ctrl+D`) with spatial offsets.
-
-### 3. High-Performance Architecture
+### 6. High-Performance Architecture
 - **2D Spatial Hash Grid**: Sub-millisecond viewport queries ($1.2\mu\text{s}$ hit-testing) across thousands of objects.
 - **Batched Vector Strokes**: Up to 1,250x fewer draw-call flushes for ink-heavy notebook pages.
 - **Delta Frustum Culling**: Smooth 60 FPS viewport transforms on expansive $5000\times 5000\text{px}$ canvas layouts.
 - **SHA-256 Asset Deduplication**: Zero duplicated storage across repetitive image payloads.
 
-### 4. Zero-Trust Security & Data Safety
+### 7. Zero-Trust Security & Data Safety
 - **100% Local & Offline**: **Zero telemetry, zero analytics, zero external network requests**.
 - **Archive Sandboxing**: Strict defenses against path traversal (`../`), Windows reserved device names (`CON`, `NUL`), and decompression bombs.
 - **Source File Immutability**: The original `.one` and `.onepkg` files are treated as immutable read-only provenance and are never altered.
@@ -102,8 +111,11 @@ cd OneNote2Obsidian
 # Install dependencies
 npm install
 
-# Run strict typecheck, production build, and all 34 test suites
+# Run strict typecheck, production build, and all 67 test suites (340 tests)
 npm run check
+
+# Run ESLint validation
+npm run lint
 
 # Development watch mode
 npm run dev
@@ -128,3 +140,10 @@ npm run dev
 - **Plugin License**: [MIT License](LICENSE) (c) 2026 OneNote2Obsidian Contributors.
 - **Third-Party Libraries**: [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) (Pixi.js, DOMPurify, RBush).
 - Clean-room TypeScript parser implemented based on Microsoft's publicly available Open Specifications (`[MS-ONE]`, `[MS-ONESTORE]`, `[MS-CAB]`, `[MS-ISF]`).
+
+---
+
+## ⚖️ Trademark Notice & Legal Disclaimer
+
+*Microsoft OneNote, OneNote, and Microsoft Office are trademarks or registered trademarks of Microsoft Corporation in the United States and/or other countries. OneNote2Obsidian is an independent open-source project and is neither affiliated with, endorsed by, nor sponsored by Microsoft Corporation.*
+

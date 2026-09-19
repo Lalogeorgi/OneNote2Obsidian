@@ -5,7 +5,12 @@ import { PageSceneSerializer } from "../pagescene/PageSceneSerializer";
 import { SceneBuilder } from "../pagescene/SceneBuilder";
 import { ExtractedAsset } from "../parser/ParserAdapter";
 import { AssetExtractor } from "./AssetExtractor";
-import { DuplicateStrategy, ImportedNotebookEntry, ImportedPageEntry, ImportManifest } from "./ImportManifest";
+import {
+  DuplicateStrategy,
+  ImportedNotebookEntry,
+  ImportedPageEntry,
+  ImportManifest,
+} from "./ImportManifest";
 import { MarkdownProjector } from "./MarkdownProjector";
 import { VaultPathConfig, VaultPathResolver } from "./VaultPathResolver";
 
@@ -143,7 +148,7 @@ export class SemanticVaultPublisher {
     manifest.recordImport(notebookEntry);
 
     // 6. Include Root Manifest file
-    const rootFolder = params.pathConfig?.rootImportFolder ?? "OneNote";
+    const rootFolder = params.pathConfig?.rootImportFolder ?? "OneNote2Obsidian";
     const manifestPath = rootFolder ? `${rootFolder}/manifest.json` : "manifest.json";
 
     files.push({

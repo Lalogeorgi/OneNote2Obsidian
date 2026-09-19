@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: GitHub Security Advisory
+    url: https://github.com/Lalogeorgi/OneNote2Obsidian/security/advisories/new
+    about: Report potential vulnerabilities privately to maintainers.
+  - name: Community Discussions
+    url: https://github.com/Lalogeorgi/OneNote2Obsidian/discussions
+    about: Ask questions, share ideas, and showcase canvas setups.

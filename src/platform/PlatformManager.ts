@@ -8,9 +8,7 @@ export class PlatformManager {
   public static getAdapter(): IPlatformAdapter {
     if (!this.instance) {
       // Auto-detect environment
-      const isNode =
-        typeof process !== "undefined" &&
-        Boolean(process.versions?.node);
+      const isNode = typeof process !== "undefined" && Boolean(process.versions?.node);
 
       if (isNode) {
         try {

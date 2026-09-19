@@ -4,7 +4,10 @@ import { DefaultViewMode } from "./OneNoteSettings";
 import { DuplicateStrategy } from "../projection/ImportManifest";
 
 export class OneNoteSettingsTab extends PluginSettingTab {
-  constructor(app: App, private plugin: OneNotePlugin) {
+  constructor(
+    app: App,
+    private plugin: OneNotePlugin
+  ) {
     super(app, plugin);
   }
 
@@ -12,17 +15,17 @@ export class OneNoteSettingsTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "OneNote to Obsidian Spatial Engine Settings" });
+    containerEl.createEl("h2", { text: "Canvas Settings" });
 
     // 1. Default View Mode
     new Setting(containerEl)
       .setName("Default View Mode")
-      .setDesc("Choose which representation to open by default when clicking OneNote notes.")
+      .setDesc("Choose which representation to open by default when clicking imported notes.")
       .addDropdown((dropdown) =>
         dropdown
-          .addOption("spatial", "Spatial Canvas (PixiJS 2.5D)")
+          .addOption("spatial", "Canvas (Visual 2.5D)")
           .addOption("markdown", "Markdown Note (Semantic Text)")
-          .addOption("split", "Split View (Side-by-Side Spatial + Markdown)")
+          .addOption("split", "Split View (Side-by-Side Canvas + Markdown)")
           .setValue(this.plugin.settings.defaultViewMode)
           .onChange(async (val) => {
             this.plugin.settings.defaultViewMode = val as DefaultViewMode;
@@ -33,13 +36,13 @@ export class OneNoteSettingsTab extends PluginSettingTab {
     // 2. Root Import Folder
     new Setting(containerEl)
       .setName("Root Import Folder")
-      .setDesc("Vault folder path where imported OneNote notebooks will be stored.")
+      .setDesc("Vault folder path where imported notes will be stored.")
       .addText((text) =>
         text
-          .setPlaceholder("OneNote")
+          .setPlaceholder("OneNote2Obsidian")
           .setValue(this.plugin.settings.rootImportFolder)
           .onChange(async (val) => {
-            this.plugin.settings.rootImportFolder = val.trim() || "OneNote";
+            this.plugin.settings.rootImportFolder = val.trim() || "OneNote2Obsidian";
             await this.plugin.saveSettings();
           })
       );
@@ -79,12 +82,10 @@ export class OneNoteSettingsTab extends PluginSettingTab {
       .setName("Flatten Folder Hierarchy")
       .setDesc("If enabled, creates single-level files instead of nested section folders.")
       .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.flattenHierarchy)
-          .onChange(async (val) => {
-            this.plugin.settings.flattenHierarchy = val;
-            await this.plugin.saveSettings();
-          })
+        toggle.setValue(this.plugin.settings.flattenHierarchy).onChange(async (val) => {
+          this.plugin.settings.flattenHierarchy = val;
+          await this.plugin.saveSettings();
+        })
       );
 
     // 6. High DPI Rendering
@@ -92,12 +93,10 @@ export class OneNoteSettingsTab extends PluginSettingTab {
       .setName("High-DPI Retina Rendering")
       .setDesc("Enables device pixel ratio auto-scaling for ultra-crisp ink lines and textures.")
       .addToggle((toggle) =>
-        toggle
-          .setValue(this.plugin.settings.enableHighDpi)
-          .onChange(async (val) => {
-            this.plugin.settings.enableHighDpi = val;
-            await this.plugin.saveSettings();
-          })
+        toggle.setValue(this.plugin.settings.enableHighDpi).onChange(async (val) => {
+          this.plugin.settings.enableHighDpi = val;
+          await this.plugin.saveSettings();
+        })
       );
   }
 }

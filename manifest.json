@@ -1,7 +1,7 @@
 {
   "id": "onenote2obsidian",
   "name": "OneNote2Obsidian",
-  "version": "0.1.0",
+  "version": "0.2.0-alpha",
   "minAppVersion": "1.5.0",
   "description": "High-fidelity spatial import and GPU rendering of Microsoft OneNote notebooks in Obsidian using PixiJS.",
   "author": "OneNote2Obsidian Contributors",

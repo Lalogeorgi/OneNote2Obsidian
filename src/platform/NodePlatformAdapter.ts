@@ -65,7 +65,10 @@ export class NodePlatformAdapter implements IPlatformAdapter {
     }
 
     const buffer = await this.fsp.readFile(filePath);
-    return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
+    return buffer.buffer.slice(
+      buffer.byteOffset,
+      buffer.byteOffset + buffer.byteLength
+    ) as ArrayBuffer;
   }
 
   public async listStagedFiles(dirPath: string): Promise<string[]> {

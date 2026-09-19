@@ -21,6 +21,7 @@ export interface ParserOptions {
 export interface ParserResult {
   readonly notebook?: CanonicalNotebook;
   readonly page?: CanonicalPage;
+  readonly pages?: CanonicalPage[];
   readonly assets: ReadonlyMap<AssetId, ExtractedAsset>;
   readonly warnings: readonly string[];
 }

@@ -2,12 +2,7 @@ import { DiagnosticCode } from "../../diagnostics/DiagnosticTypes";
 import { logger } from "../../diagnostics/Logger";
 import { CanonicalNotebook } from "../../model/CanonicalNotebook";
 import { CancellationToken } from "../Cancellation";
-import {
-  IOneNoteParserAdapter,
-  ParserError,
-  ParserOptions,
-  ParserResult,
-} from "../ParserAdapter";
+import { IOneNoteParserAdapter, ParserError, ParserOptions, ParserResult } from "../ParserAdapter";
 import { ProgressReporter, ProgressStage } from "../Progress";
 import { OnepkgImporter } from "../archive/OnepkgImporter";
 import { FormatDetector, OneNoteFileType } from "./FormatDetector";
@@ -41,22 +36,31 @@ export class OneNoteParserAdapter implements IOneNoteParserAdapter {
     }
 
     cancellationToken?.throwIfCancelled();
-    progress?.report(ProgressStage.PARSING_OBJECT_SPACES, "Parsing revision store and object spaces...", 30);
+    progress?.report(
+      ProgressStage.PARSING_OBJECT_SPACES,
+      "Parsing revision store and object spaces...",
+      30
+    );
 
     const storeParser = new MsOneStoreParser(buffer);
     storeParser.parse();
 
     cancellationToken?.throwIfCancelled();
-    progress?.report(ProgressStage.BUILDING_CANONICAL_MODEL, "Reconstructing canonical document model...", 70);
+    progress?.report(
+      ProgressStage.BUILDING_CANONICAL_MODEL,
+      "Reconstructing canonical document model...",
+      70
+    );
 
     const builder = new MsOneDocumentBuilder();
-    const page = builder.buildPage(storeParser);
+    const pages = builder.buildPages(storeParser);
     const assets = builder.getExtractedAssets();
 
-    progress?.report(ProgressStage.COMPLETE, "OneNote section parsed successfully.", 100);
+    progress?.report(ProgressStage.COMPLETE, "Section parsed successfully.", 100);
 
     return {
-      page,
+      page: pages[0],
+      pages,
       assets,
       warnings: builder.getWarnings(),
     };
@@ -69,7 +73,7 @@ export class OneNoteParserAdapter implements IOneNoteParserAdapter {
     cancellationToken?: CancellationToken
   ): Promise<CanonicalNotebook> {
     cancellationToken?.throwIfCancelled();
-    progress?.report(ProgressStage.READING_FILE, "Validating OneNote Table of Contents (.onetoc2)...", 10);
+    progress?.report(ProgressStage.READING_FILE, "Validating Table of Contents (.onetoc2)...", 10);
 
     const validation = FormatDetector.detect(buffer);
     if (!validation.isValid || validation.fileType !== OneNoteFileType.TOC_2010_2016) {
@@ -85,7 +89,7 @@ export class OneNoteParserAdapter implements IOneNoteParserAdapter {
     storeParser.parse();
 
     const builder = new MsOneDocumentBuilder();
-    const notebook = builder.buildNotebook(storeParser, "OneNote Notebook");
+    const notebook = builder.buildNotebook(storeParser, "Notebook");
 
     progress?.report(ProgressStage.COMPLETE, "Table of Contents parsed successfully.", 100);
     return notebook;

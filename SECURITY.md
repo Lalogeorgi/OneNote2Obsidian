@@ -32,10 +32,15 @@ OneNote2Obsidian enforces a strict **Zero-Trust Security Model** when ingesting 
 If you discover a security vulnerability or potential exploit in OneNote2Obsidian:
 
 1. **Do NOT open a public GitHub issue.**
-2. Please report the vulnerability privately by opening a [GitHub Security Advisory](https://github.com/Lalogeorgi/OneNote2Obsidian/security/advisories/new) or contacting the maintainers directly via email.
-3. Include:
+2. Please report the vulnerability privately by submitting a [GitHub Security Advisory](https://github.com/Lalogeorgi/OneNote2Obsidian/security/advisories/new).
+3. If you cannot access GitHub Security Advisories, contact the repository maintainer directly through the GitHub profile at [https://github.com/Lalogeorgi](https://github.com/Lalogeorgi).
+4. Please include:
    - A description of the vulnerability and its potential impact.
-   - Minimal reproduction steps or a proof-of-concept file (sanitize any private information).
-   - Any suggested remediations.
+   - Minimal reproduction steps or a synthetic proof-of-concept file (do not submit files containing private personal data).
+   - Any suggested remediations or mitigations.
 
-We will review reports promptly and publish patches in a timely release.
+### Response Commitment
+- **Initial Acknowledgement**: Within 48 hours of receipt.
+- **Assessment & Triage**: Within 5 business days.
+- **Remediation & Patch**: Coordinated disclosure release published as soon as a verified fix is validated.
+

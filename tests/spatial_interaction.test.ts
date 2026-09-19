@@ -131,4 +131,155 @@ describe("Spatial Interaction Controller & Gestures", () => {
     controller.unbind();
     hierarchy.destroy();
   });
+
+  it("handles touch screen single-finger panning on empty canvas", () => {
+    const hostEl = document.createElement("div");
+    document.body.appendChild(hostEl);
+    const hierarchy = new SceneGraphHierarchy();
+    const spatialIndex = new SpatialIndex();
+    let currentTransform: ViewportTransform = { x: 0, y: 0, scale: 1.0 };
+
+    const controller = new SpatialInteractionController(
+      hostEl,
+      hierarchy,
+      spatialIndex,
+      () => currentTransform,
+      (pt) => pt,
+      {
+        onViewportChange: (t) => {
+          currentTransform = t;
+        },
+        onSelectionChange: vi.fn(),
+      }
+    );
+
+    expect(controller.getTool()).toBe("select");
+
+    // 1. Touch down on empty canvas (no hit node)
+    const downEvent = Object.assign(new Event("pointerdown"), {
+      clientX: 50,
+      clientY: 50,
+      pointerId: 1,
+      pointerType: "touch",
+      button: 0,
+    });
+    hostEl.dispatchEvent(downEvent);
+
+    // 2. Touch drag by (30, 40)
+    const moveEvent = Object.assign(new Event("pointermove"), {
+      clientX: 80,
+      clientY: 90,
+      pointerId: 1,
+      pointerType: "touch",
+    });
+    hostEl.dispatchEvent(moveEvent);
+
+    // Viewport must have panned by (30, 40)
+    expect(currentTransform.x).toBe(30);
+    expect(currentTransform.y).toBe(40);
+
+    // 3. Touch up
+    const upEvent = Object.assign(new Event("pointerup"), {
+      clientX: 80,
+      clientY: 90,
+      pointerId: 1,
+      pointerType: "touch",
+    });
+    hostEl.dispatchEvent(upEvent);
+
+    controller.unbind();
+    hierarchy.destroy();
+    document.body.removeChild(hostEl);
+  });
+
+  it("cancels active ink stroke upon multi-touch and performs two-finger pinch-to-zoom and pan", () => {
+    const hostEl = document.createElement("div");
+    document.body.appendChild(hostEl);
+    const hierarchy = new SceneGraphHierarchy();
+    const spatialIndex = new SpatialIndex();
+    let currentTransform: ViewportTransform = { x: 0, y: 0, scale: 1.0 };
+
+    const controller = new SpatialInteractionController(
+      hostEl,
+      hierarchy,
+      spatialIndex,
+      () => currentTransform,
+      (pt) => pt,
+      {
+        onViewportChange: (t) => {
+          currentTransform = t;
+        },
+        onSelectionChange: vi.fn(),
+      }
+    );
+
+    controller.setTool("pen");
+    expect(controller.getTool()).toBe("pen");
+
+    // 1. Finger 1 touches down and begins drawing ink
+    const down1 = Object.assign(new Event("pointerdown"), {
+      clientX: 100,
+      clientY: 100,
+      pointerId: 1,
+      pointerType: "touch",
+      button: 0,
+    });
+    hostEl.dispatchEvent(down1);
+    expect(controller.ink.getCurrentPoints().length).toBe(1);
+
+    // 2. Finger 2 touches down (initiating two-finger gesture)
+    const down2 = Object.assign(new Event("pointerdown"), {
+      clientX: 200,
+      clientY: 100,
+      pointerId: 2,
+      pointerType: "touch",
+      button: 0,
+    });
+    hostEl.dispatchEvent(down2);
+
+    // Active single-finger ink stroke must be canceled upon second touch!
+    expect(controller.ink.getCurrentPoints().length).toBe(0);
+
+    // 3. Fingers move apart and translate (simultaneous pinch-zoom and pan)
+    // Distance expands from 100 to 200 (scale doubles to ~2.0) and midpoint moves from (150, 100) to (180, 120)
+    const move1 = Object.assign(new Event("pointermove"), {
+      clientX: 80,
+      clientY: 120,
+      pointerId: 1,
+      pointerType: "touch",
+    });
+    hostEl.dispatchEvent(move1);
+
+    const move2 = Object.assign(new Event("pointermove"), {
+      clientX: 280,
+      clientY: 120,
+      pointerId: 2,
+      pointerType: "touch",
+    });
+    hostEl.dispatchEvent(move2);
+
+    // Scale must have increased due to pinch-zoom
+    expect(currentTransform.scale).toBeGreaterThan(1.5);
+
+    // 4. Release fingers
+    const up1 = Object.assign(new Event("pointerup"), {
+      clientX: 80,
+      clientY: 120,
+      pointerId: 1,
+      pointerType: "touch",
+    });
+    hostEl.dispatchEvent(up1);
+
+    const up2 = Object.assign(new Event("pointerup"), {
+      clientX: 280,
+      clientY: 120,
+      pointerId: 2,
+      pointerType: "touch",
+    });
+    hostEl.dispatchEvent(up2);
+
+    controller.unbind();
+    hierarchy.destroy();
+    document.body.removeChild(hostEl);
+  });
 });

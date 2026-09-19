@@ -10,6 +10,7 @@ export type SectionGroupId = Brand<string, "SectionGroupId">;
 export type SectionId = Brand<string, "SectionId">;
 export type PageId = Brand<string, "PageId">;
 export type ObjectId = Brand<string, "ObjectId">;
+export type StickyNoteId = Brand<string, "ObjectId">;
 export type AssetId = Brand<string, "AssetId">;
 
 export class IdGenerator {
@@ -27,6 +28,10 @@ export class IdGenerator {
 
   public static pageId(rawId?: string): PageId {
     return (rawId || `page_${IdGenerator.randomHex(8)}`) as PageId;
+  }
+
+  public static stickyNoteId(rawId?: string): StickyNoteId {
+    return (rawId || `sn_${IdGenerator.randomHex(8)}`) as StickyNoteId;
   }
 
   public static objectId(prefix = "obj", rawId?: string): ObjectId {

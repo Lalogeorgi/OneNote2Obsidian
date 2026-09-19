@@ -75,6 +75,11 @@ export interface IRenderer {
   getStats(): RendererStats;
 
   /**
+   * Adjust z-order of currently selected objects.
+   */
+  adjustZOrder?(action: import("../editor/commands/EditorCommands").ZOrderAction): void;
+
+  /**
    * Destroy renderer, dispose GPU textures/buffers, unmount canvas, and release listeners.
    */
   destroy(): void;

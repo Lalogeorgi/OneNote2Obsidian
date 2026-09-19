@@ -39,11 +39,14 @@ desktop.ini
 *.onepkg
 *.onetoc2
 !tests/fixtures/**
+OneNote to import/
 staging/
 .staging/
 scratch/
 temp/
 vaults/
+docs/opensource/
+tests/
 
 # Secrets, Environment & Credentials
 .env
@@ -56,7 +59,3 @@ vaults/
 # System & Agent Logs
 *.log
 .system_generated/
-
-
-# Docs
-docs/

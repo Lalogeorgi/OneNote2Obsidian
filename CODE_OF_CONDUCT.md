@@ -36,7 +36,7 @@ This Code of Conduct applies within all community spaces, and also applies when 
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders responsible for enforcement. All complaints will be reviewed and investigated promptly and fairly.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community maintainers via GitHub at [https://github.com/Lalogeorgi](https://github.com/Lalogeorgi). All complaints will be reviewed and investigated promptly and fairly, and maintainers are committed to respecting the privacy and security of the reporter of any incident.
 
 ## Attribution
 

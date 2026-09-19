@@ -40,6 +40,25 @@ export class ResourceTracker {
     this.textureCache.set(assetId, texture);
   }
 
+  private assetDataCache = new Map<string, Uint8Array>();
+  private assetUrlCache = new Map<string, string>();
+
+  public setAssetData(assetId: string, data: Uint8Array): void {
+    this.assetDataCache.set(assetId, data);
+  }
+
+  public getAssetData(assetId: string): Uint8Array | null {
+    return this.assetDataCache.get(assetId) ?? null;
+  }
+
+  public setAssetUrl(assetId: string, url: string): void {
+    this.assetUrlCache.set(assetId, url);
+  }
+
+  public getAssetUrl(assetId: string): string | null {
+    return this.assetUrlCache.get(assetId) ?? null;
+  }
+
   public get textureCount(): number {
     return this.textureCache.size;
   }
@@ -74,5 +93,18 @@ export class ResourceTracker {
       }
     }
     this.disposables.clear();
+
+    // 4. Revoke and clear asset URLs
+    for (const url of this.assetUrlCache.values()) {
+      if (url.startsWith("blob:")) {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          // ignore
+        }
+      }
+    }
+    this.assetUrlCache.clear();
+    this.assetDataCache.clear();
   }
 }

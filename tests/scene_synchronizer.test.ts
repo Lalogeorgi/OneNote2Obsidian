@@ -119,7 +119,7 @@ describe("Scene Synchronizer & Incremental Stage Updates", () => {
     const scene1 = createMockScene([node1, node2]);
 
     sync.sync(scene1);
-    expect(domOverlay.children.length).toBe(1);
+    expect(domOverlay.querySelectorAll(".onenote-note-container").length).toBe(1);
 
     // Remove text1 in next scene
     const scene2 = createMockScene([node1]);
@@ -127,6 +127,6 @@ describe("Scene Synchronizer & Incremental Stage Updates", () => {
 
     expect(stats.removedCount).toBe(1);
     expect(sync.getDisplayObject(node2.id)).toBeNull();
-    expect(domOverlay.children.length).toBe(0);
+    expect(domOverlay.querySelectorAll(".onenote-note-container").length).toBe(0);
   });
 });

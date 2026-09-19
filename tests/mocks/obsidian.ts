@@ -23,6 +23,13 @@ if (typeof HTMLElement !== "undefined") {
     this.appendChild(el);
     return el;
   };
+  (HTMLElement.prototype as any).createSpan = function (opts?: any) {
+    const el = document.createElement("span");
+    if (opts?.cls) el.className = opts.cls;
+    if (opts?.text) el.textContent = opts.text;
+    this.appendChild(el);
+    return el;
+  };
   (HTMLElement.prototype as any).setText = function (text: string) {
     this.textContent = text;
   };
@@ -30,16 +37,20 @@ if (typeof HTMLElement !== "undefined") {
 
 export class TFile {
   public path: string;
+  public name: string;
   public basename: string;
   public extension: string;
+  public parent: { path: string } | null = null;
 
   constructor(path = "note.md") {
     this.path = path;
     const parts = path.split("/");
     const last = parts[parts.length - 1] || "note.md";
+    this.name = last;
     const subParts = last.split(".");
     this.extension = subParts.length > 1 ? subParts.pop()! : "";
     this.basename = subParts.join(".");
+    this.parent = parts.length > 1 ? { path: parts.slice(0, -1).join("/") } : null;
   }
 }
 
@@ -65,8 +76,29 @@ export class ItemView {
     return "";
   }
 
+  public getState(): Record<string, unknown> {
+    return {};
+  }
+
+  public async setState(_state: any, _result: any): Promise<void> {}
+
+  public addAction(icon: string, title: string, callback: (evt: MouseEvent) => any): HTMLElement {
+    const btn = document.createElement("button");
+    btn.className = "clickable-icon view-action";
+    btn.setAttribute("aria-label", title);
+    btn.setAttribute("data-icon", icon);
+    btn.addEventListener("click", callback);
+    return btn;
+  }
+
   public async onOpen(): Promise<void> {}
   public async onClose(): Promise<void> {}
+}
+
+export function setIcon(el: HTMLElement, iconId: string): void {
+  if (el) {
+    el.setAttribute("data-icon", iconId);
+  }
 }
 
 export class WorkspaceLeaf {
@@ -83,17 +115,72 @@ export class WorkspaceLeaf {
 }
 
 export class App {
-  public workspace: any = {
-    getLeavesOfType: () => [],
-    getLeaf: () => new WorkspaceLeaf(),
-    revealLeaf: () => {},
-    createLeafBySplit: () => new WorkspaceLeaf(),
-    on: () => ({}),
-  };
-  public vault: any = {
-    getAbstractFileByPath: (p: string) => new TFile(p),
-    read: async () => "",
-  };
+  public workspace: any;
+  public vault: any;
+  public fileManager: any;
+  public metadataCache: any;
+
+  constructor() {
+    this.workspace = {
+      getLeavesOfType: () => [],
+      getLeaf: () => new WorkspaceLeaf(),
+      revealLeaf: () => {},
+      createLeafBySplit: () => new WorkspaceLeaf(),
+      getActiveFile: () => null,
+      openLinkText: () => {},
+      on: () => ({}),
+    };
+    this.vault = {
+      getAbstractFileByPath: (p: string) => new TFile(p),
+      getFiles: () => [],
+      read: async () => "",
+      modify: async () => {},
+      on: () => ({}),
+    };
+    this.fileManager = {
+      renameFile: async () => {},
+      processFrontMatter: async (file: TFile, fn: (frontmatter: any) => void) => {
+        const content = await this.vault.read(file);
+        const parsed: Record<string, any> = {};
+        let body = content;
+        if (content.startsWith("---")) {
+          const endMatch = content.slice(3).match(/\r?\n---\r?\n?/);
+          if (endMatch && endMatch.index !== undefined) {
+            const fmText = content.slice(3, 3 + endMatch.index);
+            body = content.slice(3 + endMatch.index + endMatch[0].length);
+            const lines = fmText.split(/\r?\n/);
+            for (const l of lines) {
+              const idx = l.indexOf(":");
+              if (idx !== -1) {
+                const k = l.slice(0, idx).trim();
+                const v = l.slice(idx + 1).trim().replace(/^["']|["']$/g, "");
+                if (k) parsed[k] = v;
+              }
+            }
+          }
+        }
+        fn(parsed);
+        const newFm = ["---"];
+        for (const [k, v] of Object.entries(parsed)) {
+          if (Array.isArray(v)) {
+            newFm.push(`${k}:`);
+            for (const item of v) newFm.push(`  - ${item}`);
+          } else if (typeof v === "number" || typeof v === "boolean") {
+            newFm.push(`${k}: ${v}`);
+          } else {
+            newFm.push(`${k}: "${v}"`);
+          }
+        }
+        newFm.push("---");
+        const updated = `${newFm.join("\n")}\n\n${body.trimStart()}`;
+        await this.vault.modify(file, updated);
+      },
+    };
+    this.metadataCache = {
+      on: () => ({}),
+      getFileCache: () => null,
+    };
+  }
 }
 
 export class Notice {
@@ -179,8 +266,64 @@ export class Plugin {
   public addSettingTab(): void {}
   public registerEvent(): void {}
   public registerObsidianProtocolHandler(): void {}
+  public registerDomEvent(el: any, type: string, callback: (...args: any[]) => any): void {
+    el?.addEventListener?.(type, callback);
+  }
+  public registerMarkdownPostProcessor(_postProcessor: (el: HTMLElement, ctx: any) => void): any {
+    return {};
+  }
   public async loadData(): Promise<any> {
     return {};
   }
   public async saveData(_data: any): Promise<void> {}
+}
+
+export function normalizePath(path: string): string {
+  return path ? path.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "") : "";
+}
+
+export class MenuItem {
+  public title: string = "";
+  public icon: string = "";
+  public clickCallback?: (evt?: any) => any;
+
+  public setTitle(title: string): this {
+    this.title = title;
+    return this;
+  }
+
+  public setIcon(icon: string): this {
+    this.icon = icon;
+    return this;
+  }
+
+  public onClick(cb: (evt?: any) => any): this {
+    this.clickCallback = cb;
+    return this;
+  }
+}
+
+export class Menu {
+  public items: MenuItem[] = [];
+  public hasSeparator: boolean = false;
+
+  public addItem(cb: (item: MenuItem) => any): this {
+    const item = new MenuItem();
+    cb(item);
+    this.items.push(item);
+    return this;
+  }
+
+  public addSeparator(): this {
+    this.hasSeparator = true;
+    return this;
+  }
+
+  public showAtMouseEvent(_evt: MouseEvent): this {
+    return this;
+  }
+
+  public showAtPosition(_pos: { x: number; y: number }): this {
+    return this;
+  }
 }

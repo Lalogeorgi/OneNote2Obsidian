@@ -1,5 +1,6 @@
 export * from "./commands/IEditorCommand";
 export * from "./commands/EditorCommands";
+export * from "./commands/StickyNoteCommands";
 export * from "./HistoryManager";
 export * from "./gizmo/TransformGizmo";
 export * from "./selection/LassoSelectionController";

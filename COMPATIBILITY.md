@@ -11,18 +11,32 @@ This document outlines the feature support matrix, platform availability, format
 | **Document Hierarchy** | Notebooks (`.onetoc2`) | ✅ Supported | Reconstructs notebook tree, sections, and section groups. |
 | | Sections (`.one`) | ✅ Supported | Full parsing of OneNote 2010–2016 / 365 format. |
 | | Packages (`.onepkg`) | ✅ Supported | Unpacks MSCF CAB archives safely inside a staging sandbox. |
-| **Spatial Elements** | Freeform Outlines (Text) | ✅ Supported | Position, width, font size, bold, italic, color, and bullet lists. |
-| | Vector Handwriting / Ink | ✅ Supported | Pen strokes, highlighters, pressure, and Catmull-Rom smoothing. |
-| | Images & Graphics | ✅ Supported | PNG, JPEG, GIF, BMP with SHA-256 binary deduplication. |
-| | Shapes & Geometry | ✅ Supported | Rectangles, ellipses, arrows, lines, callout boxes. |
+| **Spatial Elements** | Freeform Outlines (Text) | ✅ Supported | Position, width, font size, bold, italic, color, bullet indentation hierarchy. |
+| | Vector Handwriting / Ink | ✅ Supported | Pen strokes, highlighters, HIMETRIC thickness extraction, `penType` classification, authentic RGB color palette, and Catmull-Rom smoothing. |
+| | Images & Graphics | ✅ Supported | PNG, JPEG, GIF, BMP with SHA-256 binary deduplication and proportional scaling. |
+| | Shapes & Geometry | ✅ Supported | Rectangles, rounded rectangles, ellipses, triangles, diamonds, stars, arrows, lines, coordinate axes. |
 | | Tables | ✅ Supported | Multi-row / multi-column grids with styled cell contents. |
 | | File Attachments | ✅ Supported | Extracted to vault assets directory with link references. |
-| | Page Canvas Rules | ✅ Supported | Solid background colors and ruled / grid guide lines. |
+| | Page Canvas Rules | ✅ Supported | Solid background colors, authentic tints, and ruled / grid guide lines. |
 | **Interactive Canvas** | 8-Point Transform Gizmo | ✅ Supported | Translate, resize, aspect-ratio lock, multi-selection. |
+| | Element Drag-and-Drop | ✅ Supported | Reposition Pictures, Text frames, and Drawings directly from selection bounds with synchronized vector coordinates. |
+| | Depth Arrangement (Z-Order)| ✅ Supported | Bring to Front, Send to Back, Bring Forward, Send Backward via ribbon Arrange group, canvas context menu, and keyboard shortcuts. |
 | | In-place Text Editing | ✅ Supported | Double-click outline to edit rich text in DOM overlay. |
-| | Live Ink Drawing & Eraser | ✅ Supported | Freehand pen, highlighter, and geometric stroke eraser. |
-| | Undo / Redo Stack | ✅ Supported | Full command history with transaction grouping. |
+| | Authentic Top Ribbon | ✅ Supported | Tabbed Ribbon navigation (**Home**, **Insert**, **Draw**, **View**) mirroring OneNote desktop. |
+| | Pens Shelf & Novelty Inks | ✅ Supported | 12 favorite pen presets, dynamic `+` Add Pen button, and 6 GPU novelty inks (Rainbow, Galaxy, Gold, Silver, Lava, Ocean). |
+| | Ink Tools & Eraser | ✅ Supported | Freehand pens, highlighters, stroke eraser, and 3 precision point eraser modes. |
+| | Ink-to-Shape Recognition | ✅ Supported | Automatic heuristic recognition and conversion of hand-drawn shapes to geometric vector shapes. |
+| | Digital Canvas Ruler | ✅ Supported | Interactive translucent ruler overlay with angle dial and degree snapping. |
+| | Undo / Redo Stack | ✅ Supported | Full command history with transaction grouping and vector point reversion. |
 | | Spatial Clipboard | ✅ Supported | Cut, copy, paste, and duplicate with coordinate offset. |
+| **Sticky Notes & Knowledge** | First-Class Sticky Notes | ✅ Supported | Full note objects with customizable color presets, collapsible titles, formatting bar. |
+| | Sticky Note Opacity / Transparency | ✅ Supported | Variable opacity slider & presets (20% to 100%) synchronized into PixiJS & DOM text. |
+| | Floating Sticky Note Windows | ✅ Supported | Standalone detached windows (`FloatingStickyNoteWindow`) with always-on-top pinning. |
+| | Sticky Notes Hub Modal | ✅ Supported | Global note explorer and search modal (`StickyNotesHubModal`) across notebook pages. |
+| | Spatial Anchors & Annotations | ✅ Supported | Anchor annotations and handwritten notes to underlying images, shapes, or outlines. |
+| | Spatial Groups | ✅ Supported | Multi-element hierarchical grouping for coordinated dragging and z-ordering. |
+| | Spatial Backlinks & Graph | ✅ Supported | Bi-directional links connecting canvas elements to Obsidian Markdown vault notes. |
+| | Page Properties Modal | ✅ Supported | Interactive canvas frontmatter and metadata editor with real-time sync. |
 | **Hybrid Workflow** | Semantic Markdown Projection | ✅ Supported | Generates clean, searchable Obsidian Markdown pages. |
 | | `.onecanvas.json` Sidecars | ✅ Supported | Stores full 2.5D spatial layout with schema versioning. |
 | | Split View (Spatial + MD) | ✅ Supported | Side-by-side synchronized viewing. |
@@ -72,3 +86,10 @@ The plugin maintains a strict separation between **Spatial Layout** and **Semant
   * *Reason*: Processing multi-gigabyte `.onepkg` archives and binary stream parsing relies on Node.js buffer and file system APIs available in Obsidian Desktop.
 - **Graphics / Rendering**: Requires WebGL 2.0 support (standard across modern Chromium/Electron runtimes).
 - **Minimum Obsidian Version**: `1.5.0`
+
+---
+
+## ⚖️ Trademark Notice & Legal Disclaimer
+
+*Microsoft OneNote, OneNote, and Microsoft Office are trademarks or registered trademarks of Microsoft Corporation in the United States and/or other countries. OneNote2Obsidian is an independent open-source project and is neither affiliated with, endorsed by, nor sponsored by Microsoft Corporation.*
+

@@ -5,6 +5,13 @@ import {
   CanonicalParagraph,
   CanonicalTextRun,
 } from "../model/CanonicalElements";
+import { CanonicalStickyNote } from "../model/CanonicalStickyNote";
+import { ResolvedStickyNoteColors, StickyNoteUtils } from "../model/StickyNoteUtils";
+import {
+  STICKY_NOTE_ICONS,
+  STICKY_NOTE_TYPOGRAPHY_AND_LAYOUT,
+} from "../constants/StickyNoteConstants";
+import { KnowledgeObjectUtils } from "../knowledge/KnowledgeObject";
 import { CanonicalPage } from "../model/CanonicalPage";
 import {
   PageScene,
@@ -12,32 +19,55 @@ import {
   SceneAttachmentNode,
   SceneImageNode,
   SceneInkNode,
+  SceneOptions,
   SceneOutlineNode,
   SceneShapeNode,
+  SceneStickyNoteNode,
   SceneTableNode,
 } from "./PageScene";
+
+export function formatOneNoteDate(timestamp?: number): string {
+  if (!timestamp) return "";
+  try {
+    const d = new Date(timestamp);
+    return d.toLocaleDateString(undefined, {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
 
 export class SceneBuilder {
   /**
    * Build an immutable, deterministically sorted PageScene display list from a CanonicalPage.
    */
-  public static build(page: CanonicalPage): PageScene {
+  public static build(page: CanonicalPage, options: SceneOptions = {}): PageScene {
     const nodes: PageSceneNode[] = [];
-    let minX = 0;
-    let minY = 0;
-    let maxX = page.pageWidth || 1200;
-    let maxY = page.pageHeight || 1600;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
 
     // Process all elements into typed SceneNodes with AABBs
     for (const el of page.elements) {
-      const aabb = Rectangle.create(
-        el.bounds.x,
-        el.bounds.y,
-        el.bounds.width,
-        el.bounds.height
-      );
+      let aabb = Rectangle.create(el.bounds.x, el.bounds.y, el.bounds.width, el.bounds.height);
+      if (el.type === "ink") {
+        const strokePadding = Math.max(el.strokes[0]?.width ?? 2, el.isHighlighter ? 8 : 4);
+        aabb = Rectangle.create(
+          el.bounds.x - strokePadding,
+          el.bounds.y - strokePadding,
+          el.bounds.width + strokePadding * 2,
+          el.bounds.height + strokePadding * 2
+        );
+      }
 
-      // Expand page bounds dynamically if content extends further
+      // Expand content bounds dynamically from elements
       minX = Math.min(minX, aabb.minX);
       minY = Math.min(minY, aabb.minY);
       maxX = Math.max(maxX, aabb.maxX);
@@ -49,29 +79,49 @@ export class SceneBuilder {
       }
     }
 
+    // Include page title block in content bounds if shown
+    if (options.showPageTitle !== false) {
+      const marginX = page.canvasStyle?.ruleLines?.marginX ?? 48;
+      const titleTop = 36;
+      const titleWidth = 300;
+      const titleHeight = 75;
+      minX = Math.min(minX, marginX);
+      minY = Math.min(minY, titleTop);
+      maxX = Math.max(maxX, marginX + titleWidth);
+      maxY = Math.max(maxY, titleTop + titleHeight);
+    }
+
+    if (!isFinite(minX)) {
+      minX = 0;
+      minY = 0;
+      maxX = 800;
+      maxY = 600;
+    }
+
     // Sort display list strictly and deterministically by zIndex and ID
     nodes.sort((a, b) => {
       if (a.zIndex !== b.zIndex) return a.zIndex - b.zIndex;
       return a.id.localeCompare(b.id);
     });
 
-    const canvasWidth = Math.max(800, maxX - minX + 200);
-    const canvasHeight = Math.max(600, maxY - minY + 200);
+    const contentWidth = Math.max(100, maxX - minX);
+    const contentHeight = Math.max(100, maxY - minY);
+    const contentBounds = new Rectangle(minX, minY, contentWidth, contentHeight);
 
     return {
       pageId: page.id,
       title: page.title,
-      canvasBounds: new Rectangle(minX, minY, canvasWidth, canvasHeight),
+      createdTime: page.createdTime,
+      canvasBounds: contentBounds,
+      contentBounds,
       canvasStyle: page.canvasStyle,
       nodes,
       version: 1,
+      sceneOptions: options,
     };
   }
 
-  private static convertElement(
-    el: CanonicalElement,
-    aabb: Rectangle
-  ): PageSceneNode | null {
+  private static convertElement(el: CanonicalElement, aabb: Rectangle): PageSceneNode | null {
     switch (el.type) {
       case "outline": {
         const renderedHtml = SceneBuilder.renderOutlineHtml(el);
@@ -117,7 +167,7 @@ export class SceneBuilder {
           isHighlighter: el.isHighlighter,
           color,
           strokeWidth,
-          opacity: el.isHighlighter ? 0.35 : 1.0,
+          opacity: 1.0,
         };
         return node;
       }
@@ -145,6 +195,32 @@ export class SceneBuilder {
         };
         return node;
       }
+      case "stickyNote": {
+        const note = el as CanonicalStickyNote;
+        const colors = StickyNoteUtils.resolveStickyNoteColors(note.color, note.theme);
+        const renderedHtml = SceneBuilder.renderStickyNoteHtml(note, colors);
+        const node: SceneStickyNoteNode = {
+          id: note.id,
+          layer: "stickyNotes",
+          bounds: note.bounds,
+          aabb,
+          zIndex: note.bounds.zIndex,
+          visible: true,
+          element: note,
+          title: note.title,
+          text: note.content,
+          renderedHtml,
+          color: colors.background,
+          headerColor: colors.header,
+          textColor: colors.text,
+          borderColor: colors.border,
+          opacity: StickyNoteUtils.clampOpacity(note.opacity),
+          isPinned: note.spatialMeta?.isPinned,
+          isFolded: note.spatialMeta?.isFolded,
+          anchor: note.anchor,
+        };
+        return node;
+      }
       case "attachment": {
         const node: SceneAttachmentNode = {
           id: el.id,
@@ -164,10 +240,47 @@ export class SceneBuilder {
     }
   }
 
-  private static renderOutlineHtml(outline: CanonicalOutline): string {
-    return outline.paragraphs
-      .map((p) => SceneBuilder.renderParagraphHtml(p))
-      .join("");
+  public static renderOutlineHtml(outline: CanonicalOutline): string {
+    return outline.paragraphs.map((p) => SceneBuilder.renderParagraphHtml(p)).join("");
+  }
+
+  public static renderStickyNoteHtml(
+    note: CanonicalStickyNote,
+    colors: ResolvedStickyNoteColors
+  ): string {
+    const titleHtml = note.title
+      ? `<div class="onenote-sticky-header" style="font-weight:${STICKY_NOTE_TYPOGRAPHY_AND_LAYOUT.HEADER_FONT_WEIGHT}; font-size:${STICKY_NOTE_TYPOGRAPHY_AND_LAYOUT.HEADER_FONT_SIZE}; margin-bottom:${STICKY_NOTE_TYPOGRAPHY_AND_LAYOUT.HEADER_MARGIN_BOTTOM}; color:${colors.text}; border-bottom: ${STICKY_NOTE_TYPOGRAPHY_AND_LAYOUT.HEADER_BORDER_BOTTOM}; padding-bottom:${STICKY_NOTE_TYPOGRAPHY_AND_LAYOUT.HEADER_PADDING_BOTTOM}; display:flex; justify-content:space-between; align-items:center;">
+          <span>${SceneBuilder.escapeHtml(note.title)}</span>
+          ${note.spatialMeta?.isPinned ? `<span style="font-size:${STICKY_NOTE_TYPOGRAPHY_AND_LAYOUT.PIN_FONT_SIZE}; opacity:${STICKY_NOTE_TYPOGRAPHY_AND_LAYOUT.PIN_OPACITY};">${STICKY_NOTE_ICONS.PIN}</span>` : ""}
+        </div>`
+      : "";
+
+    let bodyHtml = "";
+    if (note.paragraphs && note.paragraphs.length > 0) {
+      bodyHtml = note.paragraphs.map((p) => SceneBuilder.renderParagraphHtml(p)).join("");
+    } else if (note.content.includes("<") && note.content.includes(">")) {
+      bodyHtml = KnowledgeObjectUtils.renderInteractiveLinks(note.content);
+    } else {
+      const lines = note.content.split("\n");
+      bodyHtml = lines
+        .map(
+          (line) =>
+            `<div class="onenote-sticky-line" style="min-height:${STICKY_NOTE_TYPOGRAPHY_AND_LAYOUT.BODY_LINE_MIN_HEIGHT}; margin-bottom:${STICKY_NOTE_TYPOGRAPHY_AND_LAYOUT.BODY_LINE_MARGIN_BOTTOM};">${KnowledgeObjectUtils.renderInteractiveLinks(line) || "&nbsp;"}</div>`
+        )
+        .join("");
+    }
+
+    return `<div class="onenote-sticky-content" style="color:${colors.text}; font-size:${STICKY_NOTE_TYPOGRAPHY_AND_LAYOUT.CONTENT_FONT_SIZE}; line-height:${STICKY_NOTE_TYPOGRAPHY_AND_LAYOUT.CONTENT_LINE_HEIGHT};">${titleHtml}<div class="onenote-sticky-body">${bodyHtml}</div></div>`;
+  }
+
+  public static escapeHtml(text: string): string {
+    return text
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
   }
 
   private static renderParagraphHtml(p: CanonicalParagraph): string {
@@ -176,16 +289,34 @@ export class SceneBuilder {
 
     if (p.bulletType === "checkbox") {
       const checked = p.isTaskChecked ? "checked" : "";
-      bulletHtml = `<input type="checkbox" ${checked} disabled />`;
+      bulletHtml = `<input type="checkbox" ${checked} class="onenote-task-checkbox" style="margin-right:8px; cursor:pointer;" />`;
+    } else if (p.bulletChar) {
+      const isNum = p.bulletType === "number" || p.bulletType === "letter" || p.bulletType === "roman";
+      const style = isNum
+        ? "margin-right:8px; font-variant-numeric:tabular-nums;"
+        : "margin-right:8px; display:inline-block; width:14px; text-align:center;";
+      bulletHtml = `<span class="onenote-bullet" style="${style}">${SceneBuilder.escapeHtml(p.bulletChar)}</span>`;
     } else if (p.bulletType === "disc") {
-      bulletHtml = `<span style="margin-right:8px;">•</span>`;
-    } else if (p.bulletType === "number") {
-      bulletHtml = `<span style="margin-right:8px;">1.</span>`;
+      bulletHtml = `<span class="onenote-bullet" style="margin-right:8px; display:inline-block; width:14px; text-align:center;">•</span>`;
+    } else if (p.bulletType === "circle") {
+      bulletHtml = `<span class="onenote-bullet" style="margin-right:8px; display:inline-block; width:14px; text-align:center;">○</span>`;
+    } else if (p.bulletType === "square") {
+      bulletHtml = `<span class="onenote-bullet" style="margin-right:8px; display:inline-block; width:14px; text-align:center;">■</span>`;
+    } else if (p.bulletType === "diamond") {
+      bulletHtml = `<span class="onenote-bullet" style="margin-right:8px; display:inline-block; width:14px; text-align:center;">◆</span>`;
+    } else if (p.bulletType === "arrow") {
+      bulletHtml = `<span class="onenote-bullet" style="margin-right:8px; display:inline-block; width:14px; text-align:center;">➢</span>`;
+    } else if (p.bulletType === "dash") {
+      bulletHtml = `<span class="onenote-bullet" style="margin-right:8px; display:inline-block; width:14px; text-align:center;">–</span>`;
+    } else if (p.bulletType === "star") {
+      bulletHtml = `<span class="onenote-bullet" style="margin-right:8px; display:inline-block; width:14px; text-align:center;">★</span>`;
+    } else if (p.bulletType === "number" || p.bulletType === "letter" || p.bulletType === "roman") {
+      bulletHtml = `<span class="onenote-bullet" style="margin-right:8px; font-variant-numeric:tabular-nums;">1.</span>`;
     }
 
     const runsHtml = p.runs.map((r) => SceneBuilder.renderRunHtml(r)).join("");
 
-    return `<div class="onenote-paragraph" style="margin-left:${indentPx}px; margin-bottom:4px; min-height:1.2em;">${bulletHtml}${runsHtml}</div>`;
+    return `<div class="onenote-paragraph" style="margin-left:${indentPx}px; margin-bottom:4px; min-height:1.2em; white-space:pre-wrap; word-break:break-word;">${bulletHtml}${runsHtml}</div>`;
   }
 
   private static renderRunHtml(run: CanonicalTextRun): string {
@@ -193,18 +324,14 @@ export class SceneBuilder {
     if (run.style?.fontFamily) style += `font-family:${run.style.fontFamily};`;
     if (run.style?.fontSize) style += `font-size:${run.style.fontSize}pt;`;
     if (run.style?.fontColor) style += `color:${run.style.fontColor};`;
-    if (run.style?.highlightColor)
-      style += `background-color:${run.style.highlightColor};`;
+    if (run.style?.highlightColor) style += `background-color:${run.style.highlightColor};`;
     if (run.style?.bold) style += `font-weight:bold;`;
     if (run.style?.italic) style += `font-style:italic;`;
     if (run.style?.underline) style += `text-decoration:underline;`;
     if (run.style?.strikethrough) style += `text-decoration:line-through;`;
 
     // Escape text content
-    const escaped = run.text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+    const escaped = SceneBuilder.escapeHtml(run.text);
 
     let content = `<span style="${style}">${escaped}</span>`;
 

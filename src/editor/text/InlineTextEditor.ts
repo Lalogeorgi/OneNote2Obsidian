@@ -30,9 +30,7 @@ export class InlineTextEditor {
     this.activeNode = node;
 
     const el = node.element as CanonicalOutline;
-    const plainText = el.paragraphs
-      .map((p) => p.runs.map((r) => r.text).join(""))
-      .join("\n");
+    const plainText = el.paragraphs.map((p) => p.runs.map((r) => r.text).join("")).join("\n");
 
     const screenPt = this.options.viewport.sceneToScreen({
       x: node.bounds.x,

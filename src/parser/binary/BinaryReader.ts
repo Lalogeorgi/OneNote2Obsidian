@@ -14,12 +14,12 @@ export class BinaryReader {
     if (buffer instanceof Uint8Array) {
       this.buffer = buffer.buffer as ArrayBuffer;
       const start = buffer.byteOffset + byteOffset;
-      this.length = byteLength ?? (buffer.byteLength - byteOffset);
+      this.length = byteLength ?? buffer.byteLength - byteOffset;
       this.view = new DataView(this.buffer, start, this.length);
       this.bytes = new Uint8Array(this.buffer, start, this.length);
     } else {
       this.buffer = buffer;
-      this.length = byteLength ?? (buffer.byteLength - byteOffset);
+      this.length = byteLength ?? buffer.byteLength - byteOffset;
       this.view = new DataView(this.buffer, byteOffset, this.length);
       this.bytes = new Uint8Array(this.buffer, byteOffset, this.length);
     }
@@ -152,25 +152,32 @@ export class BinaryReader {
 
   public readUtf16String(byteLength: number): string {
     this.ensureBytes(byteLength);
-    const numChars = Math.floor(byteLength / 2);
-    let str = "";
-    for (let i = 0; i < numChars; i++) {
-      const code = this.view.getUint16(this.offset + i * 2, true);
-      if (code === 0) break; // Null terminator
-      str += String.fromCharCode(code);
+    const slice = this.bytes.subarray(this.offset, this.offset + byteLength);
+    let effectiveLen = byteLength;
+    for (let i = 0; i < byteLength - 1; i += 2) {
+      if (slice[i] === 0 && slice[i + 1] === 0) {
+        effectiveLen = i;
+        break;
+      }
     }
+    const decoder = new TextDecoder("utf-16le");
+    const str = decoder.decode(slice.subarray(0, effectiveLen));
     this.offset += byteLength;
     return str;
   }
 
   public readAsciiString(length: number): string {
     this.ensureBytes(length);
-    let str = "";
+    const slice = this.bytes.subarray(this.offset, this.offset + length);
+    let effectiveLen = length;
     for (let i = 0; i < length; i++) {
-      const code = this.bytes[this.offset + i]!;
-      if (code === 0) break;
-      str += String.fromCharCode(code);
+      if (slice[i] === 0) {
+        effectiveLen = i;
+        break;
+      }
     }
+    const decoder = new TextDecoder("windows-1252");
+    const str = decoder.decode(slice.subarray(0, effectiveLen));
     this.offset += length;
     return str;
   }

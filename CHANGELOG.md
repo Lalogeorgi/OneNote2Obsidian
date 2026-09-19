@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.0-alpha] - 2026-09-05
+
+### Added
+- **Authentic OneNote Top Ribbon Parity**:
+  - Full tabbed ribbon navigation (**Home**, **Insert**, **Draw**, **View**).
+  - **Draw Tab**: Favorite Pens Shelf (12 OneNote presets + dynamic `+` Add Pen button), 6 signature GPU novelty inks (Rainbow, Galaxy, Gold, Silver, Lava, Ocean), Color & Thickness inspector flyout (24-color palette, 7 thickness steps), Multi-Mode Eraser (Stroke and 3 Point eraser radii), Shapes Gallery (11 geometric stamps), Automatic Ink-to-Shape recognition, Digital Canvas Ruler, and Arrange group.
+  - **Home Tab**: Basic text formatting bar (**B**, *I*, <u>U</u>, ~~S~~, Bulleted & Numbered lists, To-Do checkboxes, Highlight), note containers, and sticky note creation with customizable default color preferences.
+  - **Insert Tab**: Quick tables (2x2, 3x3), proportional aspect-ratio preserving image insertion, wikilinks/URLs, and timestamps.
+  - **View Tab**: Rule lines (None, Ruled, Grid), page tints (White, Cream, Mint, Rose, Dark), and zoom controls.
+  - **Distraction-Free Top Bar UI**: Removed all "OneNote" brand text from the top bar header, replaced controls with crisp SVG vector icons, added an interactive 1-click 100% zoom reset badge, and automated popup dismissal on outside clicks.
+- **High-Fidelity Drawing Import Extraction**:
+  - Direct 24-bit RGB stroke color extraction from OneNote binary properties (`0x340f`).
+  - Conversion of HIMETRIC float units (`0x340c`) to CSS screen pixels.
+  - Intelligent `penType` classification (`"highlighter"`, `"ballpoint"`, `"gel"`, `"pencil"`).
+  - Full support for OneNote highlighter palette colors and blend modes.
+- **Interactive Drag-and-Drop & Depth Arrangement (Z-Order)**:
+  - Drag-and-drop repositioning for Pictures, Text frames, and Drawings directly from their selection bounding boxes.
+  - Synchronized vector coordinates in `stroke.points` during translation in `MoveNodesCommand`, preventing coordinate drift and SVG distortion.
+  - Disabled native browser HTML5 drag ghosting on canvas images for uninterrupted pointer event streams.
+  - Complete Z-order controls ("Bring to Front", "Send to Back", "Bring Forward", "Send Backward") supported via top ribbon Arrange group, right-click canvas context menu, and keyboard shortcuts (`Ctrl+Shift+]`, `Ctrl+Shift+[`).
+- **Multi-Page Section Import Separation**:
+  - Clean separation of multi-page `.one` sections into individual spatial canvases and markdown notes.
+  - Accurate bullet list indentation hierarchy and top-left alignment.
+- **First-Class Spatial Sticky Notes & Floating Windows**:
+  - Native spatial sticky note model (`CanonicalStickyNote`) with 7 color presets (Yellow, Green, Blue, Purple, Pink, Orange, Charcoal).
+  - Mandatory variable opacity/transparency controls (slider and quick presets from 20% to 100%) synchronized in real-time between PixiJS GPU rendering and DOM text overlays.
+  - Floating Sticky Note Manager (`FloatingStickyNoteManager`) supporting detached standalone desktop windows (`FloatingStickyNoteWindow`) with always-on-top pinning and live two-way canvas synchronization.
+  - Global Sticky Notes Hub modal (`StickyNotesHubModal`) and dockable view (`OneNoteStickyNoteView`) for searching and jumping to any note.
+- **Spatial Anchors & Knowledge Graph**:
+  - Spatial Anchors (`SpatialAnchorManager`) and Annotations (`SpatialAnnotationManager`) locking ink/text annotations to underlying images or diagrams during repositioning.
+  - Hierarchical Spatial Groups (`SpatialGroupManager`) for coordinated movement and z-ordering.
+  - Spatial Backlinks (`SpatialLinkGraph`, `SpatialLinkRenderer`) connecting spatial elements to Obsidian vault markdown notes.
+  - Page Properties Modal (`PagePropertiesModal`) with real-time YAML frontmatter synchronization.
+- **Expanded Automated Test Suite**:
+  - Scaled automated Vitest suite to **67 test files and 340 tests** covering parser parity, spatial indexing, opacity regressions, floating window UX, and security hardening.
+
+---
+
 ## [0.1.0-alpha] - 2026-08-21
 
 ### Added

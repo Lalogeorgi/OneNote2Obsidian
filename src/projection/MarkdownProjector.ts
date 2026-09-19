@@ -8,8 +8,11 @@ import {
   CanonicalTable,
   CanonicalTextRun,
 } from "../model/CanonicalElements";
+import { CanonicalStickyNote } from "../model/CanonicalStickyNote";
 import { CanonicalPage } from "../model/CanonicalPage";
 import { AssetId } from "../model/Ids";
+
+import { FrontmatterManager } from "../obsidian/frontmatter/FrontmatterManager";
 
 export interface MarkdownProjectionOptions {
   readonly sidecarRelativePath?: string;
@@ -23,10 +26,7 @@ export class MarkdownProjector {
   /**
    * Projects a CanonicalPage into clean, searchable GitHub Flavored Markdown with Obsidian conventions.
    */
-  public static project(
-    page: CanonicalPage,
-    options: MarkdownProjectionOptions = {}
-  ): string {
+  public static project(page: CanonicalPage, options: MarkdownProjectionOptions = {}): string {
     const lines: string[] = [];
 
     // 1. YAML Frontmatter
@@ -34,25 +34,57 @@ export class MarkdownProjector {
       lines.push("---");
       lines.push(`onenote_page_id: "${page.id}"`);
       lines.push(`onenote_title: "${this.escapeYamlString(page.title || "Untitled")}"`);
-      lines.push(`created: ${new Date(page.createdTime).toISOString()}`);
-      lines.push(`modified: ${new Date(page.modifiedTime).toISOString()}`);
+      lines.push(`created: ${FrontmatterManager.formatObsidianDate(page.createdTime)}`);
+      lines.push(`modified: ${FrontmatterManager.formatObsidianDate(page.modifiedTime)}`);
       if (options.sidecarRelativePath) {
         lines.push(`spatial_sidecar: "${options.sidecarRelativePath}"`);
       }
-      const tags = options.customTags ?? ["onenote-import"];
+      const baseTags = options.customTags ?? ["onenote-import"];
+      const metaTags = Array.isArray(page.metadata?.tags) ? (page.metadata?.tags as string[]) : [];
+      const tags = Array.from(new Set([...baseTags, ...metaTags]));
       lines.push("tags:");
       for (const t of tags) {
         lines.push(`  - ${t}`);
       }
+
+      // Merge any custom metadata properties
+      if (page.metadata) {
+        const reservedKeys = new Set([
+          "onenote_page_id",
+          "onenote_title",
+          "created",
+          "modified",
+          "spatial_sidecar",
+          "tags",
+        ]);
+        for (const [key, val] of Object.entries(page.metadata)) {
+          if (!reservedKeys.has(key) && val !== undefined) {
+            if (Array.isArray(val)) {
+              lines.push(`${key}:`);
+              for (const item of val) {
+                lines.push(`  - ${item}`);
+              }
+            } else if (typeof val === "boolean" || typeof val === "number") {
+              lines.push(`${key}: ${val}`);
+            } else {
+              lines.push(`${key}: "${this.escapeYamlString(String(val))}"`);
+            }
+          }
+        }
+      }
+
       lines.push("---");
       lines.push("");
     }
 
     // 2. Spatial Callout Banner
     if (options.includeSpatialBanner !== false) {
-      lines.push("> [!spatial]+ OneNote Spatial Canvas");
-      lines.push("> This note originated as a freeform spatial OneNote document.");
-      lines.push(`> [Open in OneNote Spatial Viewer](obsidian://onenote-spatial?page=${page.id})`);
+      lines.push("> [!spatial]+ Canvas");
+      lines.push("> This note originated as a freeform canvas document.");
+      const sidecarParam = options.sidecarRelativePath
+        ? `&sidecar=${encodeURIComponent(options.sidecarRelativePath)}`
+        : "";
+      lines.push(`> [Open in Canvas](obsidian://onenote-spatial?page=${page.id}${sidecarParam})`);
       lines.push("");
     }
 
@@ -71,25 +103,46 @@ export class MarkdownProjector {
       return a.bounds.x - b.bounds.x;
     });
 
-    // 5. Project all elements
+    // 5. Project all elements (skipping title_banner to avoid duplicate title heading)
+    let pendingInkStrokes = 0;
+    let pendingInkIsHighlighter = false;
+
+    const flushPendingInk = () => {
+      if (pendingInkStrokes > 0) {
+        const kind = pendingInkIsHighlighter ? "Highlighter Annotation" : "Handwriting / Drawing";
+        lines.push(`> [!note] ✍️ **${kind}**\n> Contains ${pendingInkStrokes} ink stroke${pendingInkStrokes === 1 ? "" : "s"}. Preserved in spatial sidecar.`);
+        lines.push("");
+        pendingInkStrokes = 0;
+        pendingInkIsHighlighter = false;
+      }
+    };
+
     for (const el of sortedElements) {
+      if (el.id.includes("title_banner")) continue;
+      if (el.type === "ink") {
+        pendingInkStrokes += el.strokes.length;
+        if (el.isHighlighter) pendingInkIsHighlighter = true;
+        continue;
+      }
+
+      flushPendingInk();
       const elMarkdown = this.projectElement(el, options);
       if (elMarkdown.trim()) {
         lines.push(elMarkdown);
         lines.push("");
       }
     }
+    flushPendingInk();
 
     return lines.join("\n");
   }
 
-  private static projectElement(
-    el: CanonicalElement,
-    options: MarkdownProjectionOptions
-  ): string {
+  private static projectElement(el: CanonicalElement, options: MarkdownProjectionOptions): string {
     switch (el.type) {
       case "outline":
         return this.projectOutline(el);
+      case "stickyNote":
+        return this.projectStickyNote(el as CanonicalStickyNote);
       case "image":
         return this.projectImage(el, options);
       case "ink":
@@ -103,6 +156,38 @@ export class MarkdownProjector {
       default:
         return "";
     }
+  }
+
+  private static projectStickyNote(note: CanonicalStickyNote): string {
+    const lines: string[] = [];
+    const titleStr = note.title ? `: ${note.title}` : "";
+    const pinStr = note.spatialMeta?.isPinned ? " 📌" : "";
+    lines.push(`> [!note] 📝 **Sticky Note${titleStr}**${pinStr}`);
+
+    let contentLines: string[] = [];
+    if (note.paragraphs && note.paragraphs.length > 0) {
+      for (const p of note.paragraphs) {
+        const pText = this.projectParagraph(p);
+        if (pText.trim()) {
+          contentLines.push(pText);
+        }
+      }
+    } else if (note.content) {
+      contentLines = note.content.split("\n");
+    }
+
+    if (contentLines.length === 0) {
+      lines.push(`> *(empty note)*`);
+    } else {
+      for (const cl of contentLines) {
+        lines.push(`> ${cl}`);
+      }
+    }
+
+    // Append durable block reference anchor for native Obsidian graph linking
+    lines.push(`> ^${note.id}`);
+
+    return lines.join("\n");
   }
 
   private static projectOutline(outline: CanonicalOutline): string {
@@ -120,17 +205,23 @@ export class MarkdownProjector {
 
   private static projectParagraph(p: CanonicalParagraph): string {
     const indent = "  ".repeat(p.indentLevel || 0);
-    const content = p.runs.map((r) => this.projectRun(r)).join("").trim();
+    const rawContent = p.runs
+      .map((r) => this.projectRun(r))
+      .join("");
 
-    if (!content) return "";
+    if (!rawContent.trim()) return "";
 
     // 1. Heading Detection Heuristic
     const primaryRun = p.runs[0];
     const fontSize = primaryRun?.style?.fontSize ?? 11;
     const isBold = primaryRun?.style?.bold ?? false;
+    const isMonospace = Boolean(
+      primaryRun?.style?.fontFamily &&
+        /consolas|courier|mono/i.test(primaryRun.style.fontFamily)
+    );
 
-    if (p.indentLevel === 0 && !p.bulletType) {
-      const headingContent = content
+    if (p.indentLevel === 0 && !p.bulletType && !isMonospace) {
+      const headingContent = rawContent
         .replace(/^\*\*([\s\S]+)\*\*$/, "$1")
         .replace(/^\*([\s\S]+)\*$/, "$1")
         .trim();
@@ -147,18 +238,29 @@ export class MarkdownProjector {
     // 2. Task Checkboxes
     if (p.bulletType === "checkbox") {
       const check = p.isTaskChecked ? "[x]" : "[ ]";
-      return `${indent}- ${check} ${content}`;
+      return `${indent}- ${check} ${rawContent.trim()}`;
     }
 
     // 3. Bullet & Numbered Lists
-    if (p.bulletType === "disc") {
-      return `${indent}- ${content}`;
-    } else if (p.bulletType === "number") {
-      return `${indent}1. ${content}`;
+    if (
+      p.bulletType === "disc" ||
+      p.bulletType === "circle" ||
+      p.bulletType === "square" ||
+      p.bulletType === "diamond" ||
+      p.bulletType === "arrow" ||
+      p.bulletType === "dash" ||
+      p.bulletType === "star"
+    ) {
+      return `${indent}- ${rawContent.trim()}`;
+    } else if (p.bulletType === "number" || p.bulletType === "letter" || p.bulletType === "roman") {
+      const prefix = p.bulletChar || "1.";
+      return `${indent}${prefix} ${rawContent.trim()}`;
     }
 
-    // 4. Standard Paragraph
-    return `${indent}${content}`;
+    // 4. Standard Paragraph / Code Line:
+    // Preserve leading whitespace for non-bullet indented code lines
+    const cleanContent = rawContent.replace(/\r?\n$/, "");
+    return `${indent}${cleanContent}`;
   }
 
   private static projectRun(run: CanonicalTextRun): string {
@@ -182,6 +284,10 @@ export class MarkdownProjector {
       if (style.highlightColor) {
         text = `==${text}==`;
       }
+
+      if (style.fontColor) {
+        text = `<span style="color:${style.fontColor}">${text}</span>`;
+      }
     }
 
     if (run.hyperlink) {
@@ -192,10 +298,7 @@ export class MarkdownProjector {
     return text;
   }
 
-  private static projectImage(
-    img: CanonicalImage,
-    options: MarkdownProjectionOptions
-  ): string {
+  private static projectImage(img: CanonicalImage, options: MarkdownProjectionOptions): string {
     const resolvedPath = options.assetPathResolver
       ? options.assetPathResolver(img.assetId)
       : undefined;
@@ -216,10 +319,7 @@ export class MarkdownProjector {
     return `> [!example] 📐 **Shape: ${shape.shapeKind.toUpperCase()}**\n> Position: (${shape.bounds.x}, ${shape.bounds.y}) | Size: ${shape.bounds.width}×${shape.bounds.height}`;
   }
 
-  private static projectTable(
-    table: CanonicalTable,
-    options: MarkdownProjectionOptions
-  ): string {
+  private static projectTable(table: CanonicalTable, options: MarkdownProjectionOptions): string {
     if (table.rows.length === 0) return "";
 
     const colCount = Math.max(1, table.columns.length);

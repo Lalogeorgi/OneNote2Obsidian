@@ -26,6 +26,12 @@ jobs:
       - name: TypeScript Strict Typecheck
         run: npm run typecheck
 
+      - name: ESLint Code Quality Verification
+        run: npm run lint
+
+      - name: Prettier Code Style Verification
+        run: npx prettier --check "src/**/*.{ts,css,json}"
+
       - name: Production ESBuild Bundle
         run: npm run build
 
