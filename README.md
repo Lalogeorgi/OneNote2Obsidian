@@ -9,7 +9,7 @@
 **OneNote2Obsidian** is an open-source Obsidian plugin designed to import Microsoft OneNote `.one` and `.onepkg` files while **preserving their freeform spatial canvas** — including positioned text frames, images, handwriting/ink, arrows, drawings, tables, file attachments, and multi-layer overlapping annotations — using **PixiJS** as the high-performance spatial rendering engine.
 Includes also **Floating Sticky Note Windows** with synchronized Markdown projection.
 
-[![On2Od](https://github.com/docs/On2Od.gif)]
+![On2Od](docs/On2Od.gif)
 
 ---
 
