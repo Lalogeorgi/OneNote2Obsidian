@@ -1,10 +1,10 @@
 {
-  "id": "onenote2obsidian",
-  "name": "OneNote2Obsidian",
+  "id": "on2od",
+  "name": "On2Od",
   "version": "0.2.0-alpha",
   "minAppVersion": "1.5.0",
-  "description": "High-fidelity spatial import and GPU rendering of Microsoft OneNote notebooks in Obsidian using PixiJS.",
-  "author": "OneNote2Obsidian Contributors",
+  "description": "Spatial import and GPU rendering of Microsoft OneNote notebooks in Obsidian using PixiJS. Floating Sticky Note Windows with synchronized Markdown projection.",
+  "author": "Lalogeorgi",
   "authorUrl": "https://github.com/Lalogeorgi/OneNote2Obsidian",
   "isDesktopOnly": true
 }
