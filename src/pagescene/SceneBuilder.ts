@@ -291,7 +291,8 @@ export class SceneBuilder {
       const checked = p.isTaskChecked ? "checked" : "";
       bulletHtml = `<input type="checkbox" ${checked} class="onenote-task-checkbox" style="margin-right:8px; cursor:pointer;" />`;
     } else if (p.bulletChar) {
-      const isNum = p.bulletType === "number" || p.bulletType === "letter" || p.bulletType === "roman";
+      const isNum =
+        p.bulletType === "number" || p.bulletType === "letter" || p.bulletType === "roman";
       const style = isNum
         ? "margin-right:8px; font-variant-numeric:tabular-nums;"
         : "margin-right:8px; display:inline-block; width:14px; text-align:center;";

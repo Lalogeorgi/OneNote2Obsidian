@@ -110,7 +110,9 @@ export class MarkdownProjector {
     const flushPendingInk = () => {
       if (pendingInkStrokes > 0) {
         const kind = pendingInkIsHighlighter ? "Highlighter Annotation" : "Handwriting / Drawing";
-        lines.push(`> [!note] ✍️ **${kind}**\n> Contains ${pendingInkStrokes} ink stroke${pendingInkStrokes === 1 ? "" : "s"}. Preserved in spatial sidecar.`);
+        lines.push(
+          `> [!note] ✍️ **${kind}**\n> Contains ${pendingInkStrokes} ink stroke${pendingInkStrokes === 1 ? "" : "s"}. Preserved in spatial sidecar.`
+        );
         lines.push("");
         pendingInkStrokes = 0;
         pendingInkIsHighlighter = false;
@@ -205,9 +207,7 @@ export class MarkdownProjector {
 
   private static projectParagraph(p: CanonicalParagraph): string {
     const indent = "  ".repeat(p.indentLevel || 0);
-    const rawContent = p.runs
-      .map((r) => this.projectRun(r))
-      .join("");
+    const rawContent = p.runs.map((r) => this.projectRun(r)).join("");
 
     if (!rawContent.trim()) return "";
 
@@ -216,8 +216,7 @@ export class MarkdownProjector {
     const fontSize = primaryRun?.style?.fontSize ?? 11;
     const isBold = primaryRun?.style?.bold ?? false;
     const isMonospace = Boolean(
-      primaryRun?.style?.fontFamily &&
-        /consolas|courier|mono/i.test(primaryRun.style.fontFamily)
+      primaryRun?.style?.fontFamily && /consolas|courier|mono/i.test(primaryRun.style.fontFamily)
     );
 
     if (p.indentLevel === 0 && !p.bulletType && !isMonospace) {

@@ -341,10 +341,12 @@ export class OneNoteItemView extends ItemView {
     };
 
     // 3. Create Authentic OneNote Ribbon, HUD & Empty State
+    const plugins = typeof this.app !== "undefined" ? (this.app as any)?.plugins : undefined;
     const pluginInstance =
-      typeof this.app !== "undefined"
-        ? (this.app as any)?.plugins?.plugins?.["onenote2obsidian"]
-        : undefined;
+      plugins?.getPlugin?.("on2od") ||
+      plugins?.plugins?.["on2od"] ||
+      plugins?.getPlugin?.("onenote2obsidian") ||
+      plugins?.plugins?.["onenote2obsidian"];
     const defaultStickyColor = pluginInstance?.settings?.defaultStickyNoteColor || "yellow";
 
     this.ribbon = new OneNoteRibbon({
@@ -419,10 +421,12 @@ export class OneNoteItemView extends ItemView {
 
   private async autoResolveActiveDocument(): Promise<void> {
     try {
+      const plugins = typeof this.app !== "undefined" ? (this.app as any)?.plugins : undefined;
       const plugin =
-        typeof this.app !== "undefined"
-          ? (this.app as any)?.plugins?.plugins?.["onenote2obsidian"]
-          : undefined;
+        plugins?.getPlugin?.("on2od") ||
+        plugins?.plugins?.["on2od"] ||
+        plugins?.getPlugin?.("onenote2obsidian") ||
+        plugins?.plugins?.["onenote2obsidian"];
       if (plugin?.coordinator && !this.activePage) {
         const page = await plugin.coordinator.resolveCanonicalPage();
         if (page && !this.activePage) {
@@ -564,10 +568,12 @@ export class OneNoteItemView extends ItemView {
     }
 
     try {
+      const plugins = typeof this.app !== "undefined" ? (this.app as any)?.plugins : undefined;
       const plugin =
-        typeof this.app !== "undefined"
-          ? (this.app as any)?.plugins?.plugins?.["onenote2obsidian"]
-          : undefined;
+        plugins?.getPlugin?.("on2od") ||
+        plugins?.plugins?.["on2od"] ||
+        plugins?.getPlugin?.("onenote2obsidian") ||
+        plugins?.plugins?.["onenote2obsidian"];
       if (plugin?.coordinator) {
         const page = await plugin.coordinator.resolveCanonicalPage(pageId);
         if (page) {
@@ -627,7 +633,8 @@ export class OneNoteItemView extends ItemView {
       text: "➕ New Canvas",
     });
     newBtn.addEventListener("click", async () => {
-      const plugin = (this.app as any).plugins?.getPlugin("onenote2obsidian");
+      const plugins = (this.app as any).plugins;
+      const plugin = plugins?.getPlugin("on2od") || plugins?.getPlugin("onenote2obsidian");
       if (plugin && typeof plugin.createNewCanvas === "function") {
         await plugin.createNewCanvas();
       }
@@ -638,7 +645,8 @@ export class OneNoteItemView extends ItemView {
       text: "📥 Import File",
     });
     importBtn.addEventListener("click", () => {
-      const plugin = (this.app as any).plugins?.getPlugin("onenote2obsidian");
+      const plugins = (this.app as any).plugins;
+      const plugin = plugins?.getPlugin("on2od") || plugins?.getPlugin("onenote2obsidian");
       if (plugin && typeof plugin.openImportModal === "function") {
         plugin.openImportModal();
       }

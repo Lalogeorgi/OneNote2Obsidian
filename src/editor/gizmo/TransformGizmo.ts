@@ -91,7 +91,8 @@ export class TransformGizmo {
     lockAspectRatio = false,
     minSize = 20
   ): SpatialBounds {
-    let { x, y, width, height, zIndex } = originalBounds;
+    let { x, y, width, height } = originalBounds;
+    const { zIndex } = originalBounds;
     const initialAspect = width / Math.max(1, height);
 
     switch (handle) {

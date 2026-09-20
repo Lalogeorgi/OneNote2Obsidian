@@ -2902,7 +2902,11 @@ export class SceneSynchronizer {
 
       bg.stroke({ color: lineColor, width: 1, alpha: 0.45 });
 
-      const marginX = rule.marginX ?? (rule.kind === "narrow" || rule.kind === "college" || rule.kind === "wide" ? 48 : undefined);
+      const marginX =
+        rule.marginX ??
+        (rule.kind === "narrow" || rule.kind === "college" || rule.kind === "wide"
+          ? 48
+          : undefined);
       if (marginX !== undefined) {
         bg.moveTo(marginX, minY);
         bg.lineTo(marginX, maxY);

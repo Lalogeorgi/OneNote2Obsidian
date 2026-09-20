@@ -53,7 +53,7 @@ export class PathSanitizer {
     }
 
     // Normalize slashes
-    let normalized = rawPath.replace(/\\/g, "/");
+    const normalized = rawPath.replace(/\\/g, "/");
 
     // Check for absolute paths or drive letters
     if (

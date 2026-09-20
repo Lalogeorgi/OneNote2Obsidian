@@ -476,9 +476,9 @@ export class FloatingStickyNoteManager {
   ): void {
     let ctx = pageId ? PageContextManager.getInstance().getPageContext(pageId) : undefined;
     if (!ctx?.canonicalPage) {
-      ctx = PageContextManager.getInstance().getAllPages().find(
-        (p) => p.canonicalPage?.elements.some((e) => e.id === noteId)
-      );
+      ctx = PageContextManager.getInstance()
+        .getAllPages()
+        .find((p) => p.canonicalPage?.elements.some((e) => e.id === noteId));
     }
     if (!ctx?.canonicalPage) return;
 
@@ -504,9 +504,9 @@ export class FloatingStickyNoteManager {
   ): void {
     let ctx = pageId ? PageContextManager.getInstance().getPageContext(pageId) : undefined;
     if (!ctx?.canonicalPage) {
-      ctx = PageContextManager.getInstance().getAllPages().find(
-        (p) => p.canonicalPage?.elements.some((e) => e.id === noteId)
-      );
+      ctx = PageContextManager.getInstance()
+        .getAllPages()
+        .find((p) => p.canonicalPage?.elements.some((e) => e.id === noteId));
     }
     if (!ctx?.canonicalPage) return;
 
@@ -532,9 +532,9 @@ export class FloatingStickyNoteManager {
   ): void {
     let ctx = pageId ? PageContextManager.getInstance().getPageContext(pageId) : undefined;
     if (!ctx?.canonicalPage) {
-      ctx = PageContextManager.getInstance().getAllPages().find(
-        (p) => p.canonicalPage?.elements.some((e) => e.id === noteId)
-      );
+      ctx = PageContextManager.getInstance()
+        .getAllPages()
+        .find((p) => p.canonicalPage?.elements.some((e) => e.id === noteId));
     }
     if (!ctx?.canonicalPage) return;
 
@@ -561,9 +561,9 @@ export class FloatingStickyNoteManager {
   ): void {
     let ctx = pageId ? PageContextManager.getInstance().getPageContext(pageId) : undefined;
     if (!ctx?.canonicalPage) {
-      ctx = PageContextManager.getInstance().getAllPages().find(
-        (p) => p.canonicalPage?.elements.some((e) => e.id === noteId)
-      );
+      ctx = PageContextManager.getInstance()
+        .getAllPages()
+        .find((p) => p.canonicalPage?.elements.some((e) => e.id === noteId));
     }
     if (!ctx?.canonicalPage) return;
 
@@ -590,9 +590,9 @@ export class FloatingStickyNoteManager {
   ): void {
     let ctx = pageId ? PageContextManager.getInstance().getPageContext(pageId) : undefined;
     if (!ctx?.canonicalPage) {
-      ctx = PageContextManager.getInstance().getAllPages().find(
-        (p) => p.canonicalPage?.elements.some((e) => e.id === updatedNote.id)
-      );
+      ctx = PageContextManager.getInstance()
+        .getAllPages()
+        .find((p) => p.canonicalPage?.elements.some((e) => e.id === updatedNote.id));
     }
     if (!ctx?.canonicalPage) return;
     const resolvedPageId = ctx.pageId;
@@ -729,9 +729,9 @@ export class FloatingStickyNoteManager {
       : PageContextManager.getInstance().getActivePageContext();
 
     if (!activeCtx?.canonicalPage?.elements.some((e) => e.id === noteId)) {
-      activeCtx = PageContextManager.getInstance().getAllPages().find(
-        (p) => p.canonicalPage?.elements.some((e) => e.id === noteId)
-      );
+      activeCtx = PageContextManager.getInstance()
+        .getAllPages()
+        .find((p) => p.canonicalPage?.elements.some((e) => e.id === noteId));
     }
 
     if (activeCtx?.canonicalPage) {

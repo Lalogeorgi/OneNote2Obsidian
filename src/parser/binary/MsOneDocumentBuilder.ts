@@ -739,7 +739,9 @@ export class MsOneDocumentBuilder {
       if (!segText) continue;
 
       const styleOid = segIdx < styleOids.length ? styleOids[segIdx] : undefined;
-      const styleNode = styleOid ? (allObjects?.get(styleOid) || allObjects?.get(styleOid & 0xff)) : undefined;
+      const styleNode = styleOid
+        ? allObjects?.get(styleOid) || allObjects?.get(styleOid & 0xff)
+        : undefined;
 
       let fontSize = defaultFont.size;
       let bold = defaultFont.bold;
@@ -757,7 +759,7 @@ export class MsOneDocumentBuilder {
 
         const sVal = styleNode.properties.get(0x1c0b)?.data as number | undefined;
         if (typeof sVal === "number" && sVal > 0) {
-          fontSize = sVal > 30 ? Math.round(sVal / 2) : (sVal >= 18 ? Math.round(sVal / 2) : sVal);
+          fontSize = sVal > 30 ? Math.round(sVal / 2) : sVal >= 18 ? Math.round(sVal / 2) : sVal;
         }
 
         if (styleNode.properties.has(0x1e14)) {
@@ -1073,7 +1075,7 @@ export class MsOneDocumentBuilder {
 
       const lines = rawText.split(/\r?\n/);
       for (let i = 0; i < lines.length; i++) {
-        let line = lines[i]!;
+        const line = lines[i]!;
         if (!line.trim() && lines.length > 1) {
           paragraphs.push({
             id: IdGenerator.objectId(`p_${i}`),
@@ -1225,7 +1227,10 @@ export class MsOneDocumentBuilder {
         if (hOverlap && vOverlap) {
           // If they overlap in both dimensions:
           // Check if they were intended as multi-column side-by-side or stacked vertically
-          if (b.bounds.x >= a.bounds.x + 60 || (a.bounds.x + aEffectiveWidth + 24 <= b.bounds.x + bEffectiveWidth)) {
+          if (
+            b.bounds.x >= a.bounds.x + 60 ||
+            a.bounds.x + aEffectiveWidth + 24 <= b.bounds.x + bEffectiveWidth
+          ) {
             // Multi-column side-by-side:
             // Shrink a's bounding box to its actual content width so empty margin doesn't overlap b
             (a as { bounds: any }).bounds = {
@@ -1625,17 +1630,23 @@ export class MsOneDocumentBuilder {
         ? minPtX
         : 100;
     const boundsY = hasFixtureX
-      ? CoordinateMath.pointsToPixels((obj.properties.get(MS_ONE_PROP_ID.FIXTURE_Y)?.data as number) ?? 100)
+      ? CoordinateMath.pointsToPixels(
+          (obj.properties.get(MS_ONE_PROP_ID.FIXTURE_Y)?.data as number) ?? 100
+        )
       : isFinite(minPtY)
         ? minPtY
         : 100;
     const boundsWidth = hasFixtureX
-      ? CoordinateMath.pointsToPixels((obj.properties.get(MS_ONE_PROP_ID.FIXTURE_BOUNDS_W)?.data as number) ?? 200)
+      ? CoordinateMath.pointsToPixels(
+          (obj.properties.get(MS_ONE_PROP_ID.FIXTURE_BOUNDS_W)?.data as number) ?? 200
+        )
       : isFinite(maxPtX - minPtX) && maxPtX > minPtX
         ? Math.max(1, maxPtX - minPtX)
         : 200;
     const boundsHeight = hasFixtureX
-      ? CoordinateMath.pointsToPixels((obj.properties.get(MS_ONE_PROP_ID.FIXTURE_BOUNDS_H)?.data as number) ?? 100)
+      ? CoordinateMath.pointsToPixels(
+          (obj.properties.get(MS_ONE_PROP_ID.FIXTURE_BOUNDS_H)?.data as number) ?? 100
+        )
       : isFinite(maxPtY - minPtY) && maxPtY > minPtY
         ? Math.max(1, maxPtY - minPtY)
         : 100;

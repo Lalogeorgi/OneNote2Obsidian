@@ -356,9 +356,9 @@ export class StickyNotesHubModal extends Modal {
   private openNote(note: CanonicalStickyNote): void {
     let pageId = PageContextManager.getInstance().getActivePageContext()?.canonicalPage?.id;
     if (!pageId) {
-      const parentCtx = PageContextManager.getInstance().getAllPages().find(
-        (ctx) => ctx.canonicalPage?.elements.some((el) => el.id === note.id)
-      );
+      const parentCtx = PageContextManager.getInstance()
+        .getAllPages()
+        .find((ctx) => ctx.canonicalPage?.elements.some((el) => el.id === note.id));
       pageId = parentCtx?.pageId;
     }
     if (FloatingStickyNoteManager.getInstance().canOpenNativePopout(this.app)) {
@@ -373,9 +373,9 @@ export class StickyNotesHubModal extends Modal {
     let targetCtx: RegisteredPageContext | null | undefined =
       PageContextManager.getInstance().getActivePageContext();
     if (!targetCtx?.canonicalPage?.elements.some((el) => el.id === noteId)) {
-      targetCtx = PageContextManager.getInstance().getAllPages().find(
-        (ctx) => ctx.canonicalPage?.elements.some((el) => el.id === noteId)
-      );
+      targetCtx = PageContextManager.getInstance()
+        .getAllPages()
+        .find((ctx) => ctx.canonicalPage?.elements.some((el) => el.id === noteId));
     }
 
     if (targetCtx?.canonicalPage) {

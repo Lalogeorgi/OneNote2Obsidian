@@ -289,10 +289,12 @@ export class HybridViewCoordinator {
    * Creates a new blank Canvas document (both Markdown note and .onecanvas.json sidecar),
    * registers it in PageContextManager, and opens it in the PixiJS spatial view.
    */
-  public async createNewCanvas(options: {
-    title?: string;
-    folder?: string;
-  } = {}): Promise<CanonicalPage> {
+  public async createNewCanvas(
+    options: {
+      title?: string;
+      folder?: string;
+    } = {}
+  ): Promise<CanonicalPage> {
     const targetFolder = options.folder ? normalizePath(options.folder) : "OneNote2Obsidian";
     const vault = this.app.vault;
 
@@ -317,7 +319,8 @@ export class HybridViewCoordinator {
     let counter = 1;
 
     const getPaths = (t: string) => {
-      const prefix = targetFolder && targetFolder !== "/" && targetFolder !== "." ? `${targetFolder}/` : "";
+      const prefix =
+        targetFolder && targetFolder !== "/" && targetFolder !== "." ? `${targetFolder}/` : "";
       return {
         mdPath: normalizePath(`${prefix}${t}.md`),
         sidecarPath: normalizePath(`${prefix}${t}.onecanvas.json`),
@@ -326,8 +329,12 @@ export class HybridViewCoordinator {
 
     let paths = getPaths(candidateTitle);
     while (
-      (vault.adapter && typeof vault.adapter.exists === "function" && (await vault.adapter.exists(paths.mdPath))) ||
-      (vault.adapter && typeof vault.adapter.exists === "function" && (await vault.adapter.exists(paths.sidecarPath))) ||
+      (vault.adapter &&
+        typeof vault.adapter.exists === "function" &&
+        (await vault.adapter.exists(paths.mdPath))) ||
+      (vault.adapter &&
+        typeof vault.adapter.exists === "function" &&
+        (await vault.adapter.exists(paths.sidecarPath))) ||
       vault.getAbstractFileByPath(paths.mdPath) ||
       vault.getAbstractFileByPath(paths.sidecarPath)
     ) {

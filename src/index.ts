@@ -536,7 +536,8 @@ export default class OneNotePlugin extends Plugin {
           percent: 80,
         });
 
-        const rootImportFolder = targetFolder.trim() || this.settings.rootImportFolder || "OneNote2Obsidian";
+        const rootImportFolder =
+          targetFolder.trim() || this.settings.rootImportFolder || "OneNote2Obsidian";
         const publishResult = await SemanticVaultPublisher.publish({
           notebook,
           extractedAssets,
