@@ -47,6 +47,7 @@ import { IdGenerator } from "../../model/Ids";
 import { CoordinateMath } from "../../geometry/Bounds";
 import { NOVELTY_INK_DEFINITIONS, DIGITAL_RULER_METRICS } from "../../constants/RibbonConstants";
 import { CANVAS_INK_METRICS } from "../../constants/CanvasConstants";
+import { setSvgContent, setSanitizedHtml, emptyElement } from "../../dom/DomUtils";
 
 export interface SyncStats {
   readonly createdCount: number;
@@ -807,7 +808,6 @@ export class SceneSynchronizer {
     const el = document.createElement("div");
     el.id = `dom-outline-${node.id}`;
     el.className = "onenote-note-container onenote-outline-container";
-    el.style.position = "absolute";
     (el as any).datasetNodeId = node.id;
 
     // 1. Top grab handle (appears on hover/focus/select)
@@ -816,7 +816,10 @@ export class SceneSynchronizer {
     const grab = document.createElement("div");
     grab.className = "onenote-container-grab-handle";
     grab.title = "Drag to move container";
-    grab.innerHTML = '<span class="onenote-grab-dots">⋮⋮</span>';
+    const grabDots = document.createElement("span");
+    grabDots.className = "onenote-grab-dots";
+    grabDots.textContent = "⋮⋮";
+    grab.appendChild(grabDots);
     (grab as any).datasetNodeId = node.id;
     header.appendChild(grab);
     el.appendChild(header);
@@ -825,7 +828,7 @@ export class SceneSynchronizer {
     const body = document.createElement("div");
     body.className = "onenote-container-body";
     body.contentEditable = "true";
-    body.innerHTML = node.renderedHtml;
+    setSanitizedHtml(body, node.renderedHtml);
 
     body.addEventListener("focus", () => {
       el.classList.add("is-focused");
@@ -902,7 +905,7 @@ export class SceneSynchronizer {
     el.style.left = `${node.bounds.x}px`;
     el.style.top = `${node.bounds.y}px`;
     el.style.width = `${Math.max(120, node.bounds.width)}px`;
-    el.style.display = node.visible ? "block" : "none";
+    el.classList.toggle("is-hidden", !node.visible);
     el.style.zIndex = `${20 + Math.min(10, node.zIndex)}`;
     const effectiveOpacity = this.previousScene
       ? SpatialGroupManager.computeEffectiveOpacity(node, this.previousScene)
@@ -911,7 +914,7 @@ export class SceneSynchronizer {
 
     const body = el.querySelector(".onenote-container-body") as HTMLElement;
     if (body && document.activeElement !== body && !body.contains(document.activeElement)) {
-      body.innerHTML = node.renderedHtml;
+      setSanitizedHtml(body, node.renderedHtml);
     }
   }
 
@@ -919,7 +922,6 @@ export class SceneSynchronizer {
     const el = document.createElement("div");
     el.id = `dom-table-${node.id}`;
     el.className = "onenote-note-container onenote-table-container";
-    el.style.position = "absolute";
     (el as any).datasetNodeId = node.id;
 
     // 1. Top grab handle
@@ -928,7 +930,10 @@ export class SceneSynchronizer {
     const grab = document.createElement("div");
     grab.className = "onenote-container-grab-handle";
     grab.title = "Drag to move table";
-    grab.innerHTML = '<span class="onenote-grab-dots">⋮⋮</span>';
+    const grabDots = document.createElement("span");
+    grabDots.className = "onenote-grab-dots";
+    grabDots.textContent = "⋮⋮";
+    grab.appendChild(grabDots);
     (grab as any).datasetNodeId = node.id;
     header.appendChild(grab);
     el.appendChild(header);
@@ -951,7 +956,7 @@ export class SceneSynchronizer {
   }
 
   private renderTableContent(tableEl: HTMLTableElement, node: SceneTableNode): void {
-    tableEl.innerHTML = "";
+    emptyElement(tableEl);
 
     const cols = node.element.columns || [];
     const colgroup = document.createElement("colgroup");
@@ -1133,7 +1138,7 @@ export class SceneSynchronizer {
     el.style.left = `${node.bounds.x}px`;
     el.style.top = `${node.bounds.y}px`;
     el.style.width = `${Math.max(160, node.bounds.width)}px`;
-    el.style.display = node.visible ? "block" : "none";
+    el.classList.toggle("is-hidden", !node.visible);
     el.style.zIndex = `${15 + Math.min(10, node.zIndex)}`;
     const effectiveOpacity = this.previousScene
       ? SpatialGroupManager.computeEffectiveOpacity(node, this.previousScene)
@@ -1150,7 +1155,6 @@ export class SceneSynchronizer {
     const el = document.createElement("div");
     el.id = `dom-image-${node.id}`;
     el.className = "onenote-image-container";
-    el.style.position = "absolute";
     (el as any).datasetNodeId = node.id;
 
     // Top grab handle
@@ -1159,7 +1163,10 @@ export class SceneSynchronizer {
     const grab = document.createElement("div");
     grab.className = "onenote-container-grab-handle";
     grab.title = "Drag to move image";
-    grab.innerHTML = '<span class="onenote-grab-dots">⋮⋮</span>';
+    const grabDots = document.createElement("span");
+    grabDots.className = "onenote-grab-dots";
+    grabDots.textContent = "⋮⋮";
+    grab.appendChild(grabDots);
     (grab as any).datasetNodeId = node.id;
     header.appendChild(grab);
     el.appendChild(header);
@@ -1213,10 +1220,6 @@ export class SceneSynchronizer {
       img.src = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150" viewBox="0 0 200 150"><rect width="200" height="150" fill="%23f3f4f6" rx="4"/><text x="100" y="78" font-family="sans-serif" font-size="13" fill="%239ca3af" text-anchor="middle">Embedded Image</text></svg>`;
     }
 
-    img.style.width = "100%";
-    img.style.height = "100%";
-    img.style.objectFit = "contain";
-    img.style.display = "block";
     el.appendChild(img);
 
     this.updateDomImageNode(el, node);
@@ -1228,7 +1231,7 @@ export class SceneSynchronizer {
     el.style.top = `${node.bounds.y}px`;
     el.style.width = `${Math.max(50, node.bounds.width)}px`;
     el.style.height = `${Math.max(50, node.bounds.height)}px`;
-    el.style.display = node.visible ? "block" : "none";
+    el.classList.toggle("is-hidden", !node.visible);
     el.style.zIndex = `${10 + Math.min(10, node.zIndex)}`;
     const effectiveOpacity = this.previousScene
       ? SpatialGroupManager.computeEffectiveOpacity(node, this.previousScene)
@@ -1240,20 +1243,10 @@ export class SceneSynchronizer {
     const el = document.createElement("div");
     el.id = `dom-ink-${node.id}`;
     el.className = "onenote-ink-container";
-    el.style.position = "absolute";
-    el.style.overflow = "visible";
-    el.style.pointerEvents = "none";
     (el as any).datasetNodeId = node.id;
 
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("class", "onenote-ink-svg");
-    svg.style.position = "absolute";
-    svg.style.left = "0";
-    svg.style.top = "0";
-    svg.style.width = "100%";
-    svg.style.height = "100%";
-    svg.style.overflow = "visible";
-    svg.style.pointerEvents = "none";
 
     el.appendChild(svg);
     this.updateDomInkNode(el, node);
@@ -1266,28 +1259,20 @@ export class SceneSynchronizer {
     el.style.top = `${b.y}px`;
     el.style.width = `${Math.max(CANVAS_INK_METRICS.MIN_BOUNDS_DIMENSION, b.width)}px`;
     el.style.height = `${Math.max(CANVAS_INK_METRICS.MIN_BOUNDS_DIMENSION, b.height)}px`;
-    el.style.display = node.visible ? "block" : "none";
-    el.style.overflow = "visible";
+    el.classList.toggle("is-hidden", !node.visible);
     el.style.zIndex = `${(node.isHighlighter ? 5 : 40) + Math.min(10, node.zIndex)}`;
 
-    const isDarkTheme =
-      typeof document !== "undefined" &&
-      (document.body?.classList?.contains("theme-dark") ||
-        document.documentElement?.classList?.contains("theme-dark"));
-
+    el.classList.toggle("is-highlighter", !!node.isHighlighter);
     if (node.isHighlighter) {
       el.style.opacity = `${(node.opacity ?? 1.0) * CANVAS_INK_METRICS.HIGHLIGHTER_ALPHA}`;
-      // In dark theme, multiply crushes bright highlighter pigments into black/mud; use screen for vibrant illumination
-      el.style.mixBlendMode = isDarkTheme ? "screen" : "multiply";
     } else {
       // Vector pens maintain 100% opacity and normal blend mode for authentic color fidelity
       el.style.opacity = `${node.opacity ?? 1.0}`;
-      el.style.mixBlendMode = "normal";
     }
 
     const svg = el.querySelector(".onenote-ink-svg");
     if (!svg) return;
-    svg.innerHTML = "";
+    emptyElement(svg);
 
     if (!node.element.strokes || node.element.strokes.length === 0) return;
 
@@ -1377,7 +1362,6 @@ export class SceneSynchronizer {
     const el = document.createElement("div");
     el.id = `dom-attachment-${node.id}`;
     el.className = "onenote-attachment-card";
-    el.style.position = "absolute";
     (el as any).datasetNodeId = node.id;
 
     const icon = document.createElement("span");
@@ -1415,7 +1399,7 @@ export class SceneSynchronizer {
   private updateDomAttachmentNode(el: HTMLElement, node: SceneAttachmentNode): void {
     el.style.left = `${node.bounds.x}px`;
     el.style.top = `${node.bounds.y}px`;
-    el.style.display = node.visible ? "inline-flex" : "none";
+    el.classList.toggle("is-hidden", !node.visible);
     const effectiveOpacity = this.previousScene
       ? SpatialGroupManager.computeEffectiveOpacity(node, this.previousScene)
       : (node.opacity ?? 1.0);
@@ -1426,7 +1410,6 @@ export class SceneSynchronizer {
     const el = document.createElement("div");
     el.id = `dom-group-${node.id}`;
     el.className = "onenote-spatial-group";
-    el.style.position = "absolute";
     el.setAttribute("role", "group");
     el.setAttribute("aria-label", `Spatial Group: ${node.title || "Group"}`);
     (el as any).datasetNodeId = node.id;
@@ -1509,7 +1492,6 @@ export class SceneSynchronizer {
     const el = document.createElement("div");
     el.id = `dom-annot-${node.id}`;
     el.className = "onenote-spatial-annotation";
-    el.style.position = "absolute";
     el.setAttribute("role", "note");
     el.setAttribute("aria-label", `Annotation: ${node.semanticKind}`);
     (el as any).datasetNodeId = node.id;
@@ -1531,7 +1513,7 @@ export class SceneSynchronizer {
   private updateDomAnnotationNode(el: HTMLElement, node: SceneAnnotationNode): void {
     el.style.left = `${node.bounds.x}px`;
     el.style.top = `${node.bounds.y}px`;
-    el.style.display = node.visible ? "inline-flex" : "none";
+    el.classList.toggle("is-hidden", !node.visible);
     el.style.opacity = `${node.opacity ?? 1.0}`;
 
     const badge = el.querySelector(".onenote-annotation-badge") as HTMLElement | null;
@@ -1619,7 +1601,7 @@ export class SceneSynchronizer {
     newNoteBtn.className = "onenote-sticky-action-btn onenote-sticky-new-btn";
     newNoteBtn.title = STICKY_NOTE_STRINGS.NEW_NOTE_TOOLTIP;
     newNoteBtn.setAttribute("aria-label", STICKY_NOTE_STRINGS.NEW_NOTE_TOOLTIP);
-    newNoteBtn.innerHTML = STICKY_NOTE_SVG_ICONS.PLUS;
+    setSvgContent(newNoteBtn, STICKY_NOTE_SVG_ICONS.PLUS);
     newNoteBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
     newNoteBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1633,7 +1615,7 @@ export class SceneSynchronizer {
 
     const grabDots = document.createElement("span");
     grabDots.className = "onenote-sticky-grab-dots";
-    grabDots.innerHTML = STICKY_NOTE_SVG_ICONS.GRAB_DOTS;
+    setSvgContent(grabDots, STICKY_NOTE_SVG_ICONS.GRAB_DOTS);
     grabDots.title = STICKY_NOTE_ACCESSIBILITY_STRINGS.DRAG_TOOLTIP;
     grabDots.setAttribute("aria-label", STICKY_NOTE_ACCESSIBILITY_STRINGS.DRAG_HANDLE);
     (grabDots as any).datasetNodeId = node.id;
@@ -1670,11 +1652,14 @@ export class SceneSynchronizer {
     el.appendChild(relPopover);
 
     const relBadge = document.createElement("button");
-    relBadge.className = "onenote-sticky-link-badge";
+    relBadge.className = "onenote-sticky-link-badge is-hidden";
     relBadge.title = STICKY_NOTE_STRINGS.BACKLINKS_TOOLTIP;
     relBadge.setAttribute("aria-label", STICKY_NOTE_ACCESSIBILITY_STRINGS.SPATIAL_BACKLINKS);
-    relBadge.innerHTML = `<span class="onenote-menu-icon" style="width:12px;height:12px;display:inline-flex;margin-right:2px;vertical-align:middle;">${STICKY_NOTE_SVG_ICONS.LINK}</span>0`;
-    relBadge.style.display = "none";
+    const relIconSpan = document.createElement("span");
+    relIconSpan.className = "onenote-menu-icon onenote-link-badge-icon";
+    setSvgContent(relIconSpan, STICKY_NOTE_SVG_ICONS.LINK);
+    relBadge.appendChild(relIconSpan);
+    relBadge.appendChild(document.createTextNode("0"));
     relBadge.addEventListener("pointerdown", (e) => e.stopPropagation());
     relBadge.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1706,11 +1691,10 @@ export class SceneSynchronizer {
     el.appendChild(anchorPopover);
 
     const anchorBadge = document.createElement("button");
-    anchorBadge.className = "onenote-sticky-anchor-badge";
+    anchorBadge.className = "onenote-sticky-anchor-badge is-hidden";
     anchorBadge.title = STICKY_NOTE_STRINGS.ANCHOR_TOOLTIP;
     anchorBadge.setAttribute("aria-label", STICKY_NOTE_ACCESSIBILITY_STRINGS.SPATIAL_ANCHOR);
-    anchorBadge.innerHTML = STICKY_NOTE_SVG_ICONS.ANCHOR;
-    anchorBadge.style.display = "none";
+    setSvgContent(anchorBadge, STICKY_NOTE_SVG_ICONS.ANCHOR);
     anchorBadge.addEventListener("pointerdown", (e) => e.stopPropagation());
     anchorBadge.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1749,7 +1733,7 @@ export class SceneSynchronizer {
         ? STICKY_NOTE_ACCESSIBILITY_STRINGS.UNPIN_NOTE
         : STICKY_NOTE_ACCESSIBILITY_STRINGS.PIN_NOTE
     );
-    pinBtn.innerHTML = STICKY_NOTE_SVG_ICONS.PIN;
+    setSvgContent(pinBtn, STICKY_NOTE_SVG_ICONS.PIN);
     pinBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
     pinBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1805,7 +1789,13 @@ export class SceneSynchronizer {
     const opHeader = document.createElement("div");
     opHeader.className = "onenote-sticky-opacity-header";
     const currentOp = node.opacity ?? 1.0;
-    opHeader.innerHTML = `<span>${STICKY_NOTE_STRINGS.OPACITY_HEADER}</span><span class="onenote-sticky-op-val">${Math.round(currentOp * 100)}%</span>`;
+    const opTitleSpan = document.createElement("span");
+    opTitleSpan.textContent = STICKY_NOTE_STRINGS.OPACITY_HEADER;
+    const opValSpan = document.createElement("span");
+    opValSpan.className = "onenote-sticky-op-val";
+    opValSpan.textContent = `${Math.round(currentOp * 100)}%`;
+    opHeader.appendChild(opTitleSpan);
+    opHeader.appendChild(opValSpan);
 
     const slider = document.createElement("input");
     slider.type = "range";
@@ -1879,7 +1869,7 @@ export class SceneSynchronizer {
     colorBtn.className = "onenote-sticky-action-btn";
     colorBtn.title = STICKY_NOTE_STRINGS.COLOR_TOOLTIP;
     colorBtn.setAttribute("aria-label", STICKY_NOTE_ACCESSIBILITY_STRINGS.CHANGE_COLOR);
-    colorBtn.innerHTML = STICKY_NOTE_SVG_ICONS.COLOR_PALETTE;
+    setSvgContent(colorBtn, STICKY_NOTE_SVG_ICONS.COLOR_PALETTE);
     colorBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
     colorBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1897,7 +1887,7 @@ export class SceneSynchronizer {
     opacityBtn.className = "onenote-sticky-action-btn";
     opacityBtn.title = STICKY_NOTE_STRINGS.OPACITY_TOOLTIP;
     opacityBtn.setAttribute("aria-label", STICKY_NOTE_ACCESSIBILITY_STRINGS.ADJUST_OPACITY);
-    opacityBtn.innerHTML = STICKY_NOTE_SVG_ICONS.OPACITY;
+    setSvgContent(opacityBtn, STICKY_NOTE_SVG_ICONS.OPACITY);
     opacityBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
     opacityBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1915,7 +1905,7 @@ export class SceneSynchronizer {
     notesListBtn.className = "onenote-sticky-action-btn onenote-sticky-hub-btn";
     notesListBtn.title = STICKY_NOTE_STRINGS.NOTES_LIST_TOOLTIP;
     notesListBtn.setAttribute("aria-label", STICKY_NOTE_ACCESSIBILITY_STRINGS.OPEN_NOTES_LIST);
-    notesListBtn.innerHTML = STICKY_NOTE_SVG_ICONS.HUB_LIST;
+    setSvgContent(notesListBtn, STICKY_NOTE_SVG_ICONS.HUB_LIST);
     notesListBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
     notesListBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1934,7 +1924,7 @@ export class SceneSynchronizer {
     popoutBtn.className = "onenote-sticky-action-btn onenote-sticky-popout-btn";
     popoutBtn.title = STICKY_NOTE_STRINGS.POPOUT_TOOLTIP;
     popoutBtn.setAttribute("aria-label", STICKY_NOTE_STRINGS.POPOUT_TOOLTIP);
-    popoutBtn.innerHTML = STICKY_NOTE_SVG_ICONS.POPOUT;
+    setSvgContent(popoutBtn, STICKY_NOTE_SVG_ICONS.POPOUT);
     popoutBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
     popoutBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1949,7 +1939,7 @@ export class SceneSynchronizer {
     delBtn.className = "onenote-sticky-action-btn";
     delBtn.title = STICKY_NOTE_STRINGS.DELETE_TOOLTIP;
     delBtn.setAttribute("aria-label", STICKY_NOTE_ACCESSIBILITY_STRINGS.DELETE_NOTE);
-    delBtn.innerHTML = STICKY_NOTE_SVG_ICONS.CLOSE;
+    setSvgContent(delBtn, STICKY_NOTE_SVG_ICONS.CLOSE);
     delBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
     delBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1968,7 +1958,7 @@ export class SceneSynchronizer {
     body.contentEditable = "true";
     body.spellcheck = true;
     body.setAttribute("data-placeholder", STICKY_NOTE_STRINGS.BODY_PLACEHOLDER);
-    body.innerHTML = node.renderedHtml;
+    setSanitizedHtml(body, node.renderedHtml);
 
     body.addEventListener("focus", () => {
       el.classList.add("is-focused");
@@ -2106,7 +2096,7 @@ export class SceneSynchronizer {
 
     const body = el.querySelector(".onenote-sticky-body") as HTMLElement;
     if (body && document.activeElement !== body) {
-      body.innerHTML = node.renderedHtml;
+      setSanitizedHtml(body, node.renderedHtml);
     }
 
     const badge = el.querySelector(".onenote-sticky-link-badge") as HTMLElement | null;
@@ -2114,14 +2104,14 @@ export class SceneSynchronizer {
       const nodeLinks = this.resolvedLinks?.linksByNodeId.get(node.id);
       const count = nodeLinks ? nodeLinks.totalCount : 0;
       badge.textContent = `🔗 ${count}`;
-      badge.style.display = count > 0 ? "inline-flex" : "none";
+      badge.classList.toggle("is-hidden", count === 0);
     }
 
     const anchorBadge = el.querySelector(".onenote-sticky-anchor-badge") as HTMLElement | null;
     if (anchorBadge) {
       const anchor = node.anchor || node.element?.anchor;
       if (anchor) {
-        anchorBadge.style.display = "inline-flex";
+        anchorBadge.classList.remove("is-hidden");
         if (anchor.status === "broken") {
           anchorBadge.textContent = "⚓⚠️";
           anchorBadge.classList.add("is-broken");
@@ -2133,7 +2123,7 @@ export class SceneSynchronizer {
           anchorBadge.title = `Anchored to: ${anchor.targetType} [${anchor.targetId || anchor.sourceFile || ""}]`;
         }
       } else {
-        anchorBadge.style.display = "none";
+        anchorBadge.classList.add("is-hidden");
       }
     }
 
@@ -2145,17 +2135,21 @@ export class SceneSynchronizer {
   }
 
   private populateRelationshipPopover(popoverEl: HTMLElement, node: SceneStickyNoteNode): void {
-    popoverEl.innerHTML = "";
+    emptyElement(popoverEl);
     if (!this.resolvedLinks) {
-      popoverEl.innerHTML =
-        '<div style="color:var(--text-muted); font-size:11px;">No relationships discovered.</div>';
+      const msg = document.createElement("div");
+      msg.className = "onenote-muted-msg";
+      msg.textContent = "No relationships discovered.";
+      popoverEl.appendChild(msg);
       return;
     }
 
     const nodeLinks = this.resolvedLinks.linksByNodeId.get(node.id);
     if (!nodeLinks || nodeLinks.totalCount === 0) {
-      popoverEl.innerHTML =
-        '<div style="color:var(--text-muted); font-size:11px;">No relationships discovered.</div>';
+      const msg = document.createElement("div");
+      msg.className = "onenote-muted-msg";
+      msg.textContent = "No relationships discovered.";
+      popoverEl.appendChild(msg);
       return;
     }
 
@@ -2171,7 +2165,7 @@ export class SceneSynchronizer {
         item.className = "onenote-relationship-item";
 
         const icon = document.createElement("span");
-        icon.style.color = "var(--interactive-accent)";
+        icon.className = "onenote-accent-icon";
         icon.textContent = "→";
         item.appendChild(icon);
 
@@ -2203,9 +2197,8 @@ export class SceneSynchronizer {
     // 2. Inbound Backlinks Section
     if (nodeLinks.inbound.length > 0) {
       const secTitle = document.createElement("div");
-      secTitle.className = "onenote-relationship-section-title";
+      secTitle.className = `onenote-relationship-section-title ${nodeLinks.outbound.length > 0 ? "has-margin-top" : ""}`;
       secTitle.textContent = `Incoming Backlinks (${nodeLinks.inbound.length})`;
-      secTitle.style.marginTop = nodeLinks.outbound.length > 0 ? "6px" : "0";
       popoverEl.appendChild(secTitle);
 
       for (const link of nodeLinks.inbound) {
@@ -2213,7 +2206,7 @@ export class SceneSynchronizer {
         item.className = "onenote-relationship-item";
 
         const icon = document.createElement("span");
-        icon.style.color = "#10B981";
+        icon.className = "onenote-success-icon";
         icon.textContent = "←";
         item.appendChild(icon);
 
@@ -2243,7 +2236,7 @@ export class SceneSynchronizer {
   }
 
   private populateAnchorPopover(popoverEl: HTMLElement, node: SceneStickyNoteNode): void {
-    popoverEl.innerHTML = "";
+    emptyElement(popoverEl);
     const anchor = node.anchor || node.element?.anchor;
     if (!anchor) {
       // Unanchored Note: Provide quick anchor affordance
@@ -2253,8 +2246,7 @@ export class SceneSynchronizer {
       popoverEl.appendChild(header);
 
       const msg = document.createElement("div");
-      msg.style.fontSize = "11px";
-      msg.style.color = "var(--text-muted)";
+      msg.className = "onenote-anchor-msg";
       msg.textContent = "This note is free-floating. Pick a nearby target to anchor:";
       popoverEl.appendChild(msg);
 
@@ -2264,10 +2256,7 @@ export class SceneSynchronizer {
 
       if (nearby.length > 0) {
         const targetsSec = document.createElement("div");
-        targetsSec.style.display = "flex";
-        targetsSec.style.flexDirection = "column";
-        targetsSec.style.gap = "4px";
-        targetsSec.style.marginTop = "6px";
+        targetsSec.className = "onenote-anchor-targets-sec";
 
         for (const target of nearby.slice(0, 3)) {
           const btn = document.createElement("button");
@@ -2287,6 +2276,7 @@ export class SceneSynchronizer {
       }
       return;
     }
+
 
     const resolved = this.previousScene
       ? SpatialAnchorManager.resolveAnchor(node, this.previousScene)
@@ -2750,9 +2740,6 @@ export class SceneSynchronizer {
     if (!this.rulerEl) {
       this.rulerEl = document.createElement("div");
       this.rulerEl.className = "onenote-canvas-ruler";
-      this.rulerEl.style.position = "absolute";
-      this.rulerEl.style.zIndex = "40";
-      this.rulerEl.style.userSelect = "none";
       this.rulerEl.style.width = `${DIGITAL_RULER_METRICS.WIDTH}px`;
       this.rulerEl.style.height = `${DIGITAL_RULER_METRICS.HEIGHT}px`;
 

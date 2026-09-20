@@ -41,13 +41,11 @@ export class InlineTextEditor {
     const textarea = document.createElement("textarea");
     textarea.className = "onenote-inline-text-editor";
     textarea.value = plainText;
-    textarea.style.position = "absolute";
     textarea.style.left = `${screenPt.x}px`;
     textarea.style.top = `${screenPt.y}px`;
     textarea.style.width = `${Math.max(120, node.bounds.width * scale)}px`;
     textarea.style.height = `${Math.max(60, node.bounds.height * scale)}px`;
     textarea.style.fontSize = `${14 * scale}px`;
-    textarea.style.zIndex = "1000";
 
     textarea.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {

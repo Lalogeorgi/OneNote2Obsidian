@@ -12,6 +12,7 @@ import { IdGenerator } from "../model/Ids";
 import { StickyNoteUtils } from "../model/StickyNoteUtils";
 import { PageSceneSerializer } from "../pagescene/PageSceneSerializer";
 import { FloatingStickyNoteManager } from "./FloatingStickyNoteManager";
+import { setSvgContent } from "../dom/DomUtils";
 
 export class StickyNotesHubModal extends Modal {
   private searchQuery = "";
@@ -234,7 +235,7 @@ export class StickyNotesHubModal extends Modal {
       const delBtn = cardHeader.createEl("button", {
         cls: "onenote-hub-card-del",
       });
-      delBtn.innerHTML = STICKY_NOTE_SVG_ICONS.CLOSE;
+      setSvgContent(delBtn, STICKY_NOTE_SVG_ICONS.CLOSE);
       delBtn.title = STICKY_NOTE_STRINGS.DELETE_TOOLTIP;
       delBtn.setAttribute("aria-label", STICKY_NOTE_ACCESSIBILITY_STRINGS.DELETE_NOTE);
       delBtn.addEventListener("click", (e) => {

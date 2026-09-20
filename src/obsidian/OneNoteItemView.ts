@@ -887,9 +887,11 @@ export class OneNoteItemView extends ItemView {
       stickyPalettePopup.addClass("is-hidden");
     });
 
-    const imgInput = insertGroup.createEl("input", { type: "file" });
+    const imgInput = insertGroup.createEl("input", {
+      type: "file",
+      cls: "onenote-hidden-file-input",
+    });
     imgInput.accept = "image/*";
-    imgInput.style.display = "none";
     imgInput.addEventListener("change", async () => {
       const file = imgInput.files?.[0];
       if (file && this.renderer) {

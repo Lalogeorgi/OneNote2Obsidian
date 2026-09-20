@@ -31,7 +31,6 @@ import { SceneSynchronizer } from "./SceneSynchronizer";
 import { PAGE_RULE_DEFAULTS } from "../../constants/RibbonConstants";
 import {
   CANVAS_VIEWPORT_METRICS,
-  CANVAS_LAYER_ZINDEX,
   CANVAS_INSERTION_DEFAULTS,
   createFallbackSceneRect,
 } from "../../constants/CanvasConstants";
@@ -112,26 +111,12 @@ export class PixiRenderer implements IRenderer {
       // Style and mount WebGL canvas
       const canvas = this.app.canvas;
       canvas.className = "onenote-canvas-host";
-      canvas.style.position = "absolute";
-      canvas.style.top = "0";
-      canvas.style.left = "0";
-      canvas.style.width = "100%";
-      canvas.style.height = "100%";
-      canvas.style.zIndex = CANVAS_LAYER_ZINDEX.WEBGL_CANVAS;
       hostElement.appendChild(canvas);
 
       // Create and mount DOM Overlay if enabled
       if (options.enableDomOverlay !== false) {
         this.domOverlay = document.createElement("div");
         this.domOverlay.className = "onenote-dom-overlay";
-        this.domOverlay.style.position = "absolute";
-        this.domOverlay.style.top = "0";
-        this.domOverlay.style.left = "0";
-        this.domOverlay.style.width = "100%";
-        this.domOverlay.style.height = "100%";
-        this.domOverlay.style.zIndex = CANVAS_LAYER_ZINDEX.DOM_OVERLAY;
-        this.domOverlay.style.pointerEvents = "none";
-        this.domOverlay.style.transformOrigin = "0 0";
         hostElement.appendChild(this.domOverlay);
       }
 

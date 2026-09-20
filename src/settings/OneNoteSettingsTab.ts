@@ -15,7 +15,7 @@ export class OneNoteSettingsTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Canvas Settings" });
+    new Setting(containerEl).setName("Canvas Settings").setHeading();
 
     // 1. Default View Mode
     new Setting(containerEl)

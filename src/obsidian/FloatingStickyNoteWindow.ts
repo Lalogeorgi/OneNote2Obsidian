@@ -14,6 +14,7 @@ import {
 } from "../constants/StickyNoteConstants";
 import { StickyNoteFormatToolbar } from "../editor/text/StickyNoteFormatToolbar";
 import { FloatingStickyNoteManager } from "./FloatingStickyNoteManager";
+import { emptyElement, setSvgContent, setSanitizedHtml } from "../dom/DomUtils";
 
 export interface FloatingStickyNoteCallbacks {
   onContentChange?: (noteId: StickyNoteId, newContent: string) => void;
@@ -185,7 +186,7 @@ export class FloatingStickyNoteWindow {
             ? `<p>${updatedNote.content}</p>`
             : "";
       if (this.bodyEl.innerHTML !== targetHtml) {
-        this.bodyEl.innerHTML = targetHtml;
+        setSanitizedHtml(this.bodyEl, targetHtml);
       }
     }
 
@@ -269,7 +270,7 @@ export class FloatingStickyNoteWindow {
     newNoteBtn.className = "onenote-sticky-action-btn onenote-sticky-new-btn";
     newNoteBtn.title = STICKY_NOTE_STRINGS.NEW_NOTE_TOOLTIP;
     newNoteBtn.setAttribute("aria-label", STICKY_NOTE_STRINGS.NEW_NOTE_TOOLTIP);
-    newNoteBtn.innerHTML = STICKY_NOTE_SVG_ICONS.PLUS;
+    setSvgContent(newNoteBtn, STICKY_NOTE_SVG_ICONS.PLUS);
     newNoteBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
     newNoteBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -281,7 +282,7 @@ export class FloatingStickyNoteWindow {
 
     const dots = document.createElement("span");
     dots.className = "onenote-sticky-grab-dots";
-    dots.innerHTML = STICKY_NOTE_SVG_ICONS.GRAB_DOTS;
+    setSvgContent(dots, STICKY_NOTE_SVG_ICONS.GRAB_DOTS);
     dots.setAttribute("aria-hidden", "true");
     left.appendChild(dots);
 
@@ -323,7 +324,7 @@ export class FloatingStickyNoteWindow {
     this.moreBtnEl.title = STICKY_NOTE_STRINGS.MENU_TOOLTIP;
     this.moreBtnEl.setAttribute("aria-label", STICKY_NOTE_STRINGS.MENU_TOOLTIP);
     this.moreBtnEl.setAttribute("aria-expanded", "false");
-    this.moreBtnEl.innerHTML = STICKY_NOTE_SVG_ICONS.MENU_DOTS;
+    setSvgContent(this.moreBtnEl, STICKY_NOTE_SVG_ICONS.MENU_DOTS);
     this.moreBtnEl.addEventListener("pointerdown", (e) => e.stopPropagation());
     this.moreBtnEl.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -348,7 +349,7 @@ export class FloatingStickyNoteWindow {
         ? STICKY_NOTE_ACCESSIBILITY_STRINGS.UNPIN_FROM_FRONT
         : STICKY_NOTE_ACCESSIBILITY_STRINGS.PIN_IN_FRONT
     );
-    this.pinBtnEl.innerHTML = STICKY_NOTE_SVG_ICONS.PIN;
+    setSvgContent(this.pinBtnEl, STICKY_NOTE_SVG_ICONS.PIN);
     this.pinBtnEl.addEventListener("pointerdown", (e) => e.stopPropagation());
     this.pinBtnEl.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -363,7 +364,7 @@ export class FloatingStickyNoteWindow {
     this.minimizeBtnEl.className = "onenote-sticky-action-btn onenote-floating-minimize-btn";
     this.minimizeBtnEl.title = STICKY_NOTE_STRINGS.MINIMIZE_TOOLTIP;
     this.minimizeBtnEl.setAttribute("aria-label", STICKY_NOTE_STRINGS.MINIMIZE_TOOLTIP);
-    this.minimizeBtnEl.innerHTML = STICKY_NOTE_SVG_ICONS.MINIMIZE;
+    setSvgContent(this.minimizeBtnEl, STICKY_NOTE_SVG_ICONS.MINIMIZE);
     this.minimizeBtnEl.addEventListener("pointerdown", (e) => e.stopPropagation());
     this.minimizeBtnEl.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -381,7 +382,7 @@ export class FloatingStickyNoteWindow {
       "aria-label",
       STICKY_NOTE_ACCESSIBILITY_STRINGS.CLOSE_FLOATING_NOTE
     );
-    this.closeBtnEl.innerHTML = STICKY_NOTE_SVG_ICONS.CLOSE;
+    setSvgContent(this.closeBtnEl, STICKY_NOTE_SVG_ICONS.CLOSE);
     this.closeBtnEl.addEventListener("pointerdown", (e) => e.stopPropagation());
     this.closeBtnEl.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -406,11 +407,12 @@ export class FloatingStickyNoteWindow {
     this.bodyEl.contentEditable = "true";
     this.bodyEl.tabIndex = 0;
     this.bodyEl.setAttribute("data-placeholder", STICKY_NOTE_STRINGS.BODY_PLACEHOLDER);
-    if (this.note.content && this.note.content.trim().startsWith("<")) {
-      this.bodyEl.innerHTML = this.note.content;
-    } else {
-      this.bodyEl.innerHTML = this.note.content ? `<p>${this.note.content}</p>` : "";
-    }
+    const initialContent = this.note.content
+      ? this.note.content.trim().startsWith("<")
+        ? this.note.content
+        : `<p>${this.note.content}</p>`
+      : "";
+    setSanitizedHtml(this.bodyEl, initialContent);
 
     this.bodyEl.addEventListener("blur", () => {
       const innerHtml = this.bodyEl.innerHTML || "";
@@ -542,35 +544,20 @@ export class FloatingStickyNoteWindow {
 
   public toggleMinimize(): void {
     this.isMinimized = !this.isMinimized;
-    if (this.isMinimized) {
-      this.containerEl.classList.add("is-minimized");
-      this.bodyEl.style.display = "none";
-      if (this.formatToolbar?.el) this.formatToolbar.el.style.display = "none";
-      if (this.footerDateEl) this.footerDateEl.style.display = "none";
-    } else {
-      this.containerEl.classList.remove("is-minimized");
-      this.bodyEl.style.display = "block";
-      if (this.formatToolbar?.el) this.formatToolbar.el.style.display = "";
-      if (this.footerDateEl) this.footerDateEl.style.display = "";
-    }
+    this.containerEl.classList.toggle("is-minimized", this.isMinimized);
   }
 
   private applyOpacity(val: number): void {
     const clampedVal = Math.max(STICKY_NOTE_TYPOGRAPHY_AND_LAYOUT.MIN_OPACITY, Math.min(1.0, val));
     this.containerEl.style.opacity = `${clampedVal}`;
     if (clampedVal < 1.0) {
-      this.containerEl.style.backdropFilter =
-        STICKY_NOTE_TYPOGRAPHY_AND_LAYOUT.DEFAULT_BACKDROP_BLUR;
-      (this.containerEl.style as any).webkitBackdropFilter =
-        STICKY_NOTE_TYPOGRAPHY_AND_LAYOUT.DEFAULT_BACKDROP_BLUR;
+      this.containerEl.classList.add("onenote-sticky-backdrop-blur");
     } else {
-      this.containerEl.style.backdropFilter = "";
-      (this.containerEl.style as any).webkitBackdropFilter = "";
+      this.containerEl.classList.remove("onenote-sticky-backdrop-blur");
     }
   }
 
   private updatePositionStyle(): void {
-    this.containerEl.style.position = "fixed";
     this.containerEl.style.left = `${this.currentBounds.x}px`;
     this.containerEl.style.top = `${this.currentBounds.y}px`;
     this.containerEl.style.width = `${this.currentBounds.width}px`;
@@ -725,7 +712,7 @@ export class FloatingStickyNoteWindow {
   // --- Popover: Unified Menu (Color Palette, Opacity, Notes List) ---
 
   private buildMenuPopover(popover: HTMLElement): void {
-    popover.innerHTML = "";
+    emptyElement(popover);
 
     // 1. Color Palette Section
     const colorTitle = document.createElement("div");
@@ -782,7 +769,13 @@ export class FloatingStickyNoteWindow {
     const currentOp = this.note.opacity ?? 1.0;
     const opHeader = document.createElement("div");
     opHeader.className = "onenote-sticky-opacity-header";
-    opHeader.innerHTML = `<span>${STICKY_NOTE_STRINGS.TRANSPARENCY_HEADER}</span><span class="onenote-sticky-op-val">${Math.round(currentOp * 100)}%</span>`;
+    const titleSpan = document.createElement("span");
+    titleSpan.textContent = STICKY_NOTE_STRINGS.TRANSPARENCY_HEADER;
+    const valSpan = document.createElement("span");
+    valSpan.className = "onenote-sticky-op-val";
+    valSpan.textContent = `${Math.round(currentOp * 100)}%`;
+    opHeader.appendChild(titleSpan);
+    opHeader.appendChild(valSpan);
 
     const slider = document.createElement("input");
     slider.type = "range";
@@ -852,7 +845,7 @@ export class FloatingStickyNoteWindow {
     this.hubBtnEl.className = "onenote-menu-item onenote-floating-hub-btn";
     const iconSpan = document.createElement("span");
     iconSpan.className = "onenote-menu-icon";
-    iconSpan.innerHTML = STICKY_NOTE_SVG_ICONS.HUB_LIST;
+    setSvgContent(iconSpan, STICKY_NOTE_SVG_ICONS.HUB_LIST);
     const textSpan = document.createElement("span");
     textSpan.textContent = "Notes list";
     this.hubBtnEl.appendChild(iconSpan);

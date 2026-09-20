@@ -296,7 +296,14 @@ export default class OneNotePlugin extends Plugin {
 
         const btn = document.createElement("button");
         btn.className = "onenote-callout-spatial-btn mod-cta";
-        btn.innerHTML = `<span class="onenote-btn-icon">🗺️</span> <span>Open Canvas</span>`;
+        const iconSpan = document.createElement("span");
+        iconSpan.className = "onenote-btn-icon";
+        iconSpan.textContent = "🗺️";
+        const labelSpan = document.createElement("span");
+        labelSpan.textContent = "Open Canvas";
+        btn.appendChild(iconSpan);
+        btn.appendChild(document.createTextNode(" "));
+        btn.appendChild(labelSpan);
 
         btn.addEventListener("click", (e) => {
           e.preventDefault();

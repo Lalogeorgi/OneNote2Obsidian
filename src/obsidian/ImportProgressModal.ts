@@ -50,11 +50,11 @@ export class ImportProgressModal extends Modal {
     this.progressContainerEl = contentEl.createDiv({
       cls: "onenote-import-progress",
     });
-    this.progressContainerEl.style.display = "none";
+    this.progressContainerEl.addClass("is-hidden");
     this.renderProgress();
 
     this.errorContainerEl = contentEl.createDiv({ cls: "onenote-import-error" });
-    this.errorContainerEl.style.display = "none";
+    this.errorContainerEl.addClass("is-hidden");
   }
 
   private renderForm(): void {
@@ -111,7 +111,6 @@ export class ImportProgressModal extends Modal {
 
     const barWrapper = this.progressContainerEl.createDiv({ cls: "onenote-progress-bar-wrapper" });
     this.progressBarEl = barWrapper.createDiv({ cls: "onenote-progress-bar-fill" });
-    this.progressBarEl.style.width = "0%";
 
     this.progressTextEl = this.progressContainerEl.createDiv({
       cls: "onenote-progress-text",
@@ -136,9 +135,9 @@ export class ImportProgressModal extends Modal {
     if (!this.selectedFile || this.isImporting) return;
 
     this.isImporting = true;
-    this.formContainerEl.style.display = "none";
-    this.progressContainerEl.style.display = "block";
-    this.errorContainerEl.style.display = "none";
+    this.formContainerEl.addClass("is-hidden");
+    this.progressContainerEl.removeClass("is-hidden");
+    this.errorContainerEl.addClass("is-hidden");
 
     this.cts = new CancellationTokenSource();
 
@@ -176,8 +175,8 @@ export class ImportProgressModal extends Modal {
   }
 
   private handleImportError(err: Error): void {
-    this.progressContainerEl.style.display = "none";
-    this.errorContainerEl.style.display = "block";
+    this.progressContainerEl.addClass("is-hidden");
+    this.errorContainerEl.removeClass("is-hidden");
     this.errorContainerEl.empty();
 
     const isCancelled = err.message.includes("cancelled") || err.message.includes("aborted");
@@ -217,8 +216,8 @@ export class ImportProgressModal extends Modal {
       cls: "mod-cta",
     });
     retryBtn.onclick = () => {
-      this.errorContainerEl.style.display = "none";
-      this.formContainerEl.style.display = "block";
+      this.errorContainerEl.addClass("is-hidden");
+      this.formContainerEl.removeClass("is-hidden");
     };
   }
 

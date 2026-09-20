@@ -23,55 +23,55 @@ export class FloatingTextFormatBar {
     // Format buttons definitions
     const items: Array<{
       id: string;
-      label: string;
+      render: (btn: HTMLElement) => void;
       title: string;
       action: () => void;
     }> = [
       {
         id: "bold",
-        label: "<b>B</b>",
+        render: (btn) => btn.createEl("b", { text: "B" }),
         title: "Bold (Ctrl+B)",
         action: () => this.exec("bold"),
       },
       {
         id: "italic",
-        label: "<i>I</i>",
+        render: (btn) => btn.createEl("i", { text: "I" }),
         title: "Italic (Ctrl+I)",
         action: () => this.exec("italic"),
       },
       {
         id: "underline",
-        label: "<u>U</u>",
+        render: (btn) => btn.createEl("u", { text: "U" }),
         title: "Underline (Ctrl+U)",
         action: () => this.exec("underline"),
       },
       {
         id: "strike",
-        label: "<s>S</s>",
+        render: (btn) => btn.createEl("s", { text: "S" }),
         title: "Strikethrough",
         action: () => this.exec("strikeThrough"),
       },
       {
         id: "bullet",
-        label: "• List",
+        render: (btn) => btn.setText("• List"),
         title: "Bulleted List",
         action: () => this.exec("insertUnorderedList"),
       },
       {
         id: "number",
-        label: "1. List",
+        render: (btn) => btn.setText("1. List"),
         title: "Numbered List",
         action: () => this.exec("insertOrderedList"),
       },
       {
         id: "todo",
-        label: "☑ To-Do",
+        render: (btn) => btn.setText("☑ To-Do"),
         title: "To-Do Tag (Checkbox)",
         action: () => this.insertTodoCheckbox(),
       },
       {
         id: "highlight",
-        label: "🖍️",
+        render: (btn) => btn.setText("🖍️"),
         title: "Text Highlight",
         action: () => this.exec("hiliteColor", "#FEF08A"),
       },
@@ -80,7 +80,7 @@ export class FloatingTextFormatBar {
     for (const item of items) {
       const btn = document.createElement("button");
       btn.className = "onenote-format-btn";
-      btn.innerHTML = item.label;
+      item.render(btn);
       btn.title = item.title;
       btn.type = "button";
       btn.addEventListener("mousedown", (e) => {
@@ -142,8 +142,6 @@ export class FloatingTextFormatBar {
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
     checkbox.className = "onenote-todo-checkbox";
-    checkbox.style.marginRight = "6px";
-    checkbox.style.verticalAlign = "middle";
 
     range.insertNode(checkbox);
     range.setStartAfter(checkbox);

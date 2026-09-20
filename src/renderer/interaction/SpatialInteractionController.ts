@@ -46,7 +46,6 @@ import { DIGITAL_RULER_METRICS } from "../../constants/RibbonConstants";
 import {
   CANVAS_INTERACTION_METRICS,
   CANVAS_INSERTION_DEFAULTS,
-  CANVAS_LAYER_ZINDEX,
   CANVAS_CONTEXT_MENU_CONFIG,
   CANVAS_CURSORS,
   ContextMenuActionId,
@@ -116,7 +115,7 @@ export class SpatialInteractionController {
     private callbacks: SpatialInteractionCallbacks,
     private synchronizer?: SceneSynchronizer
   ) {
-    this.hostElement.style.touchAction = "none";
+    this.hostElement.classList.add("onenote-canvas-host");
     this.bindEvents();
     this.bindSynchronizerEvents();
   }
@@ -749,15 +748,24 @@ export class SpatialInteractionController {
     const selNodes = this.getSelectedNodes();
     const menu = document.createElement("div");
     menu.className = "onenote-canvas-context-menu";
-    menu.style.position = "fixed";
     menu.style.left = `${e.clientX}px`;
     menu.style.top = `${e.clientY}px`;
-    menu.style.zIndex = CANVAS_LAYER_ZINDEX.CONTEXT_MENU;
 
     const addItem = (icon: string, label: string, shortcut: string, onClick: () => void) => {
       const item = document.createElement("button");
       item.className = "onenote-context-item";
-      item.innerHTML = `<span class="onenote-context-icon">${icon}</span><span class="onenote-context-label">${label}</span><span class="onenote-context-shortcut">${shortcut}</span>`;
+      const iconSpan = document.createElement("span");
+      iconSpan.className = "onenote-context-icon";
+      iconSpan.textContent = icon;
+      const labelSpan = document.createElement("span");
+      labelSpan.className = "onenote-context-label";
+      labelSpan.textContent = label;
+      const shortcutSpan = document.createElement("span");
+      shortcutSpan.className = "onenote-context-shortcut";
+      shortcutSpan.textContent = shortcut;
+      item.appendChild(iconSpan);
+      item.appendChild(labelSpan);
+      item.appendChild(shortcutSpan);
       item.addEventListener("click", (evt) => {
         evt.stopPropagation();
         this.closeContextMenu();

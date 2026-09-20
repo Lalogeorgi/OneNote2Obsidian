@@ -18,6 +18,7 @@ import { PageId, StickyNoteId } from "../model/Ids";
 import { StickyNoteUtils, STICKY_NOTE_PRESET_PALETTES } from "../model/StickyNoteUtils";
 import { FloatingStickyNoteManager } from "./FloatingStickyNoteManager";
 import { StickyNotesHubModal } from "./StickyNotesHubModal";
+import { setSvgContent, setSanitizedHtml } from "../dom/DomUtils";
 
 export class OneNoteStickyNoteView extends ItemView {
   public noteId: StickyNoteId | null = null;
@@ -136,12 +137,12 @@ export class OneNoteStickyNoteView extends ItemView {
     const leafContainer = (this.leaf as any)?.containerEl;
     if (leafContainer) {
       const viewHeader = leafContainer.querySelector(".view-header") as HTMLElement | null;
-      if (viewHeader) viewHeader.style.display = "none";
+      if (viewHeader) viewHeader.classList.add("is-hidden");
       const tabsParent = leafContainer.closest(".workspace-tabs");
       const tabHeader = tabsParent?.querySelector(
         ".workspace-tab-header-container"
       ) as HTMLElement | null;
-      if (tabHeader) tabHeader.style.display = "none";
+      if (tabHeader) tabHeader.classList.add("is-hidden");
     }
 
     // Also strip Obsidian's titlebar and window control buttons ONLY in a popout window document, NEVER in the main Obsidian window
@@ -156,7 +157,7 @@ export class OneNoteStickyNoteView extends ItemView {
         doc !== document);
     if (isPopoutDoc) {
       const titlebars = doc.querySelectorAll(".titlebar, .titlebar-button-container");
-      titlebars.forEach((tb) => ((tb as HTMLElement).style.display = "none"));
+      titlebars.forEach((tb) => ((tb as HTMLElement).classList.add("is-hidden")));
     }
 
     this.setupThemeObserver();
@@ -205,7 +206,7 @@ export class OneNoteStickyNoteView extends ItemView {
       this.headerEl.style.backgroundColor = colors.header;
     }
     if (this.contentEl) {
-      this.contentEl.style.backgroundColor = "transparent";
+      this.contentEl.classList.add("onenote-transparent-bg");
     }
   }
 
@@ -219,7 +220,7 @@ export class OneNoteStickyNoteView extends ItemView {
       cls: "onenote-sticky-action-btn onenote-sticky-new-btn",
       title: STICKY_NOTE_STRINGS.NEW_NOTE_TOOLTIP,
     });
-    newNoteBtn.innerHTML = STICKY_NOTE_SVG_ICONS.PLUS;
+    setSvgContent(newNoteBtn, STICKY_NOTE_SVG_ICONS.PLUS);
     newNoteBtn.setAttribute("aria-label", STICKY_NOTE_STRINGS.NEW_NOTE_TOOLTIP);
     newNoteBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -235,7 +236,7 @@ export class OneNoteStickyNoteView extends ItemView {
     const dots = left.createSpan({
       cls: "onenote-sticky-grab-dots",
     });
-    dots.innerHTML = STICKY_NOTE_SVG_ICONS.GRAB_DOTS;
+    setSvgContent(dots, STICKY_NOTE_SVG_ICONS.GRAB_DOTS);
     dots.setAttribute("aria-hidden", "true");
 
     this.titleInputEl = left.createEl("input", {
@@ -272,7 +273,7 @@ export class OneNoteStickyNoteView extends ItemView {
       cls: "onenote-sticky-action-btn onenote-sticky-menu-btn",
       title: STICKY_NOTE_STRINGS.MENU_TOOLTIP,
     });
-    this.moreBtnEl.innerHTML = STICKY_NOTE_SVG_ICONS.MENU_DOTS;
+    setSvgContent(this.moreBtnEl, STICKY_NOTE_SVG_ICONS.MENU_DOTS);
     this.moreBtnEl.setAttribute("aria-label", STICKY_NOTE_STRINGS.MENU_TOOLTIP);
     this.moreBtnEl.setAttribute("aria-expanded", "false");
     this.moreBtnEl.addEventListener("click", (e) => {
@@ -292,7 +293,7 @@ export class OneNoteStickyNoteView extends ItemView {
         ? STICKY_NOTE_STRINGS.UNPIN_FRONT_TOOLTIP
         : STICKY_NOTE_STRINGS.PIN_FRONT_TOOLTIP,
     });
-    this.pinBtnEl.innerHTML = STICKY_NOTE_SVG_ICONS.PIN;
+    setSvgContent(this.pinBtnEl, STICKY_NOTE_SVG_ICONS.PIN);
     this.pinBtnEl.setAttribute(
       "aria-label",
       this.isPinned
@@ -311,7 +312,7 @@ export class OneNoteStickyNoteView extends ItemView {
       cls: "onenote-sticky-action-btn onenote-floating-minimize-btn",
       title: STICKY_NOTE_STRINGS.MINIMIZE_TOOLTIP,
     });
-    this.minimizeBtnEl.innerHTML = STICKY_NOTE_SVG_ICONS.MINIMIZE;
+    setSvgContent(this.minimizeBtnEl, STICKY_NOTE_SVG_ICONS.MINIMIZE);
     this.minimizeBtnEl.setAttribute("aria-label", STICKY_NOTE_STRINGS.MINIMIZE_TOOLTIP);
     this.minimizeBtnEl.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -325,7 +326,7 @@ export class OneNoteStickyNoteView extends ItemView {
       cls: "onenote-sticky-action-btn onenote-floating-close-btn",
       title: STICKY_NOTE_STRINGS.CLOSE_TOOLTIP,
     });
-    this.closeBtnEl.innerHTML = STICKY_NOTE_SVG_ICONS.CLOSE;
+    setSvgContent(this.closeBtnEl, STICKY_NOTE_SVG_ICONS.CLOSE);
     this.closeBtnEl.setAttribute(
       "aria-label",
       STICKY_NOTE_ACCESSIBILITY_STRINGS.CLOSE_FLOATING_NOTE
@@ -474,7 +475,11 @@ export class OneNoteStickyNoteView extends ItemView {
     const currentOp = this.note?.opacity ?? 1.0;
 
     const opHeader = opacityCtrl.createDiv({ cls: "onenote-sticky-opacity-header" });
-    opHeader.innerHTML = `<span>${STICKY_NOTE_STRINGS.TRANSPARENCY_HEADER}</span><span class="onenote-sticky-op-val">${Math.round(currentOp * 100)}%</span>`;
+    opHeader.createSpan({ text: STICKY_NOTE_STRINGS.TRANSPARENCY_HEADER });
+    opHeader.createSpan({
+      cls: "onenote-sticky-op-val",
+      text: `${Math.round(currentOp * 100)}%`,
+    });
 
     const slider = opacityCtrl.createEl("input", {
       cls: "onenote-sticky-opacity-slider",
@@ -535,7 +540,7 @@ export class OneNoteStickyNoteView extends ItemView {
       cls: "onenote-menu-item onenote-floating-hub-btn",
     });
     const iconSpan = this.hubBtnEl.createSpan({ cls: "onenote-menu-icon" });
-    iconSpan.innerHTML = STICKY_NOTE_SVG_ICONS.HUB_LIST;
+    setSvgContent(iconSpan, STICKY_NOTE_SVG_ICONS.HUB_LIST);
     this.hubBtnEl.createSpan({ text: "Notes list" });
     this.hubBtnEl.setAttribute("aria-label", STICKY_NOTE_ACCESSIBILITY_STRINGS.OPEN_NOTES_LIST);
     this.hubBtnEl.addEventListener("click", (e) => {
@@ -624,17 +629,7 @@ export class OneNoteStickyNoteView extends ItemView {
 
   public toggleCompactMinimize(): void {
     this.isMinimized = !this.isMinimized;
-    if (this.isMinimized) {
-      this.rootContainerEl.classList.add("is-minimized");
-      this.bodyEl.style.display = "none";
-      if (this.formatToolbar?.el) this.formatToolbar.el.style.display = "none";
-      if (this.footerDateEl) this.footerDateEl.style.display = "none";
-    } else {
-      this.rootContainerEl.classList.remove("is-minimized");
-      this.bodyEl.style.display = "";
-      if (this.formatToolbar?.el) this.formatToolbar.el.style.display = "";
-      if (this.footerDateEl) this.footerDateEl.style.display = "";
-    }
+    this.rootContainerEl.classList.toggle("is-minimized", this.isMinimized);
   }
 
   public closeWindow(): void {
@@ -687,13 +682,9 @@ export class OneNoteStickyNoteView extends ItemView {
     const clampedVal = Math.max(STICKY_NOTE_TYPOGRAPHY_AND_LAYOUT.MIN_OPACITY, Math.min(1.0, val));
     this.rootContainerEl.style.opacity = `${clampedVal}`;
     if (clampedVal < 1.0) {
-      this.rootContainerEl.style.backdropFilter =
-        STICKY_NOTE_TYPOGRAPHY_AND_LAYOUT.DEFAULT_BACKDROP_BLUR;
-      (this.rootContainerEl.style as any).webkitBackdropFilter =
-        STICKY_NOTE_TYPOGRAPHY_AND_LAYOUT.DEFAULT_BACKDROP_BLUR;
+      this.rootContainerEl.classList.add("onenote-sticky-backdrop-blur");
     } else {
-      this.rootContainerEl.style.backdropFilter = "";
-      (this.rootContainerEl.style as any).webkitBackdropFilter = "";
+      this.rootContainerEl.classList.remove("onenote-sticky-backdrop-blur");
     }
 
     // Apply OS-level window opacity strictly to the child popout window (never main Obsidian window)
@@ -728,7 +719,7 @@ export class OneNoteStickyNoteView extends ItemView {
             ? `<p>${this.note.content}</p>`
             : "";
       if (this.bodyEl.innerHTML !== targetHtml) {
-        this.bodyEl.innerHTML = targetHtml;
+        setSanitizedHtml(this.bodyEl, targetHtml);
       }
     }
 

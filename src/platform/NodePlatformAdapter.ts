@@ -11,11 +11,11 @@ export class NodePlatformAdapter implements IPlatformAdapter {
   constructor() {
     try {
       // Dynamic require / import to keep web packagers clean
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- dynamic require for desktop node fs
       this.fsp = require("fs").promises;
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- dynamic require for desktop node path
       this.path = require("path");
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- dynamic require for desktop node os
       this.os = require("os");
     } catch {
       // Running in environment without Node fs

@@ -170,7 +170,7 @@ export class HybridViewCoordinator {
       active: true,
     });
 
-    workspace.revealLeaf(leaf);
+    await workspace.revealLeaf(leaf);
 
     const canonicalPage = await this.resolveCanonicalPage(
       targetPageId || undefined,
@@ -219,7 +219,7 @@ export class HybridViewCoordinator {
 
     if (leaf) {
       await leaf.openFile(file, { active: true });
-      this.app.workspace.revealLeaf(leaf);
+      await this.app.workspace.revealLeaf(leaf);
       this.contextManager.setActivePage(targetPageId);
     }
   }
@@ -259,7 +259,7 @@ export class HybridViewCoordinator {
       }
     }
 
-    workspace.revealLeaf(leftLeaf);
+    await workspace.revealLeaf(leftLeaf);
   }
 
   /**

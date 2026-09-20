@@ -43,7 +43,7 @@ export class PathSanitizer {
     }
 
     // Check for null bytes and control characters (0x00 - 0x1F, 0x7F)
-    // eslint-disable-next-line no-control-regex
+    // eslint-disable-next-line no-control-regex -- needed to detect control characters in path
     if (/[\x00-\x1F\x7F]/.test(rawPath)) {
       return {
         isValid: false,

@@ -1202,6 +1202,7 @@
 }
 
 .onenote-progress-bar-fill {
+  width: 0%;
   height: 100%;
   background: linear-gradient(90deg, var(--interactive-accent), #60a5fa);
   transition: width 0.2s ease;
@@ -4338,9 +4339,142 @@ body.mod-popout:has(.onenote-sticky-popout-leaf-container) .titlebar-inner {
 }
 
 .onenote-ink-svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
   overflow: visible !important;
   pointer-events: none;
   filter: drop-shadow(0 0 0.2px rgba(0, 0, 0, 0.15));
 }
 
+.onenote-ink-container.is-highlighter {
+  mix-blend-mode: multiply;
+}
 
+.theme-dark .onenote-ink-container.is-highlighter {
+  mix-blend-mode: screen;
+}
+
+.onenote-relationship-section-title.has-margin-top {
+  margin-top: 6px;
+}
+
+.onenote-todo-checkbox {
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.onenote-inline-text-editor {
+  position: absolute;
+  z-index: 1000;
+}
+
+/* Compliance Utility Classes for Obsidian Review Guidelines */
+.onenote-hidden-file-input {
+  position: fixed !important;
+  left: -9999px !important;
+  top: -9999px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.onenote-sticky-backdrop-blur {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.onenote-floating-container.is-minimized .onenote-floating-body,
+.onenote-floating-container.is-minimized .onenote-sticky-bottom-toolbar,
+.onenote-floating-container.is-minimized .onenote-floating-footer,
+.onenote-sticky-popout-window.is-minimized .onenote-sticky-body,
+.onenote-sticky-popout-window.is-minimized .onenote-sticky-bottom-toolbar,
+.onenote-sticky-popout-window.is-minimized .onenote-floating-footer {
+  display: none !important;
+}
+
+.onenote-transparent-bg {
+  background-color: transparent !important;
+}
+
+.onenote-swatch-white {
+  border: 1px solid #d1d5db !important;
+}
+
+.onenote-todo-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 6px;
+}
+
+.onenote-canvas-host {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.onenote-dom-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  transform-origin: 0 0;
+}
+
+.onenote-canvas-context-menu {
+  position: fixed;
+  z-index: 10000;
+}
+
+.onenote-image-element {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.onenote-canvas-ruler {
+  position: absolute;
+  z-index: 40;
+  user-select: none;
+}
+
+.onenote-link-badge-icon {
+  width: 12px;
+  height: 12px;
+  display: inline-flex;
+  margin-right: 2px;
+  vertical-align: middle;
+}
+
+.onenote-muted-msg {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.onenote-accent-icon {
+  color: var(--interactive-accent);
+}
+
+.onenote-success-icon {
+  color: #10b981;
+}
+
+.onenote-anchor-msg {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.onenote-anchor-targets-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}

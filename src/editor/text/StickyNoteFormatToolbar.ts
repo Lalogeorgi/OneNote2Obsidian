@@ -8,6 +8,7 @@ import {
   STICKY_NOTE_FORMAT_TOOLS,
   STICKY_NOTE_TYPOGRAPHY_AND_LAYOUT,
 } from "../../constants/StickyNoteConstants";
+import { emptyElement, setSvgContent } from "../../dom/DomUtils";
 
 export interface StickyNoteFormatToolbarOptions {
   readonly onImageSelect?: (file: File) => void;
@@ -103,6 +104,10 @@ export class StickyNoteFormatToolbar {
     }
   }
 
+  public getActiveBody(): HTMLElement | null {
+    return this.activeBodyEl;
+  }
+
   public updateActiveStates(): void {
     if (!this.activeBodyEl) return;
     const doc = this.doc;
@@ -169,7 +174,27 @@ export class StickyNoteFormatToolbar {
       const btn = document.createElement("button");
       btn.className = "onenote-sticky-format-btn";
       btn.type = "button";
-      btn.innerHTML = tool.label;
+      if (tool.id === "bold") {
+        const b = document.createElement("b");
+        b.textContent = "B";
+        btn.appendChild(b);
+      } else if (tool.id === "italic") {
+        const i = document.createElement("i");
+        i.textContent = "I";
+        btn.appendChild(i);
+      } else if (tool.id === "underline") {
+        const u = document.createElement("u");
+        u.textContent = "U";
+        btn.appendChild(u);
+      } else if (tool.id === "strike") {
+        const s = document.createElement("s");
+        s.textContent = "S";
+        btn.appendChild(s);
+      } else if (tool.svgIcon) {
+        setSvgContent(btn, tool.svgIcon);
+      } else {
+        btn.textContent = tool.title;
+      }
       btn.title = tool.title;
       btn.setAttribute("data-command", tool.id);
       btn.setAttribute("aria-label", tool.title);
@@ -351,13 +376,19 @@ export class StickyNoteFormatToolbar {
     textSpan.className = "onenote-sticky-check-text";
     textSpan.contentEditable = "true";
     textSpan.setAttribute("contenteditable", "true");
-    textSpan.innerHTML =
+    if (
       initialHtml &&
       initialHtml.trim() &&
       initialHtml.trim() !== "&nbsp;" &&
       initialHtml.trim() !== "\u00A0"
-        ? initialHtml
-        : "<br>";
+    ) {
+      const parsed = new DOMParser().parseFromString(initialHtml, "text/html");
+      while (parsed.body.firstChild) {
+        textSpan.appendChild(doc.importNode(parsed.body.firstChild, true));
+      }
+    } else {
+      textSpan.appendChild(doc.createElement("br"));
+    }
 
     checkContainer.appendChild(wrapper);
     checkContainer.appendChild(textSpan);
@@ -368,15 +399,14 @@ export class StickyNoteFormatToolbar {
     const doc = this.doc;
     const win = this.win;
     const textSpan = checkItem.querySelector(".onenote-sticky-check-text") as HTMLElement | null;
-    const content = textSpan ? textSpan.innerHTML : "";
     const p = doc.createElement("div");
-    p.innerHTML =
-      content.trim() &&
-      content.trim() !== "&nbsp;" &&
-      content.trim() !== "\u00A0" &&
-      content.trim() !== "<br>"
-        ? content
-        : "<br>";
+    if (textSpan && textSpan.hasChildNodes()) {
+      while (textSpan.firstChild) {
+        p.appendChild(textSpan.firstChild);
+      }
+    } else {
+      p.appendChild(doc.createElement("br"));
+    }
     checkItem.replaceWith(p);
 
     if (win?.getSelection) {
@@ -501,7 +531,8 @@ export class StickyNoteFormatToolbar {
               textSpan.innerHTML === "&nbsp;" ||
               textSpan.innerHTML === "\u00A0"
             ) {
-              textSpan.innerHTML = "<br>";
+              emptyElement(textSpan);
+              textSpan.appendChild(doc.createElement("br"));
             }
           } catch {
             trailingHtml = "<br>";
@@ -569,11 +600,7 @@ export class StickyNoteFormatToolbar {
     const input = doc.createElement("input");
     input.type = "file";
     input.accept = STICKY_NOTE_TYPOGRAPHY_AND_LAYOUT.IMAGE_INPUT_ACCEPT;
-    input.style.position = "fixed";
-    input.style.left = "-9999px";
-    input.style.top = "-9999px";
-    input.style.opacity = "0";
-    input.style.pointerEvents = "none";
+    input.className = "onenote-hidden-file-input";
     doc.body.appendChild(input);
 
     const cleanup = () => {
@@ -636,7 +663,7 @@ export class StickyNoteFormatToolbar {
 
     // Follow with an editable paragraph so typing can continue immediately below
     const nextP = doc.createElement("p");
-    nextP.innerHTML = "<br>";
+    nextP.appendChild(doc.createElement("br"));
 
     const selection = win?.getSelection ? win.getSelection() : null;
     if (
