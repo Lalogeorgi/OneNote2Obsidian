@@ -343,6 +343,8 @@ export class OneNoteItemView extends ItemView {
     // 3. Create Authentic OneNote Ribbon, HUD & Empty State
     const plugins = typeof this.app !== "undefined" ? (this.app as any)?.plugins : undefined;
     const pluginInstance =
+      plugins?.getPlugin?.("onenote-spatial") ||
+      plugins?.plugins?.["onenote-spatial"] ||
       plugins?.getPlugin?.("on2od") ||
       plugins?.plugins?.["on2od"] ||
       plugins?.getPlugin?.("onenote2obsidian") ||
@@ -423,6 +425,8 @@ export class OneNoteItemView extends ItemView {
     try {
       const plugins = typeof this.app !== "undefined" ? (this.app as any)?.plugins : undefined;
       const plugin =
+        plugins?.getPlugin?.("onenote-spatial") ||
+        plugins?.plugins?.["onenote-spatial"] ||
         plugins?.getPlugin?.("on2od") ||
         plugins?.plugins?.["on2od"] ||
         plugins?.getPlugin?.("onenote2obsidian") ||
@@ -570,6 +574,8 @@ export class OneNoteItemView extends ItemView {
     try {
       const plugins = typeof this.app !== "undefined" ? (this.app as any)?.plugins : undefined;
       const plugin =
+        plugins?.getPlugin?.("onenote-spatial") ||
+        plugins?.plugins?.["onenote-spatial"] ||
         plugins?.getPlugin?.("on2od") ||
         plugins?.plugins?.["on2od"] ||
         plugins?.getPlugin?.("onenote2obsidian") ||
@@ -634,7 +640,10 @@ export class OneNoteItemView extends ItemView {
     });
     newBtn.addEventListener("click", async () => {
       const plugins = (this.app as any).plugins;
-      const plugin = plugins?.getPlugin("on2od") || plugins?.getPlugin("onenote2obsidian");
+      const plugin =
+        plugins?.getPlugin("onenote-spatial") ||
+        plugins?.getPlugin("on2od") ||
+        plugins?.getPlugin("onenote2obsidian");
       if (plugin && typeof plugin.createNewCanvas === "function") {
         await plugin.createNewCanvas();
       }
@@ -646,7 +655,10 @@ export class OneNoteItemView extends ItemView {
     });
     importBtn.addEventListener("click", () => {
       const plugins = (this.app as any).plugins;
-      const plugin = plugins?.getPlugin("on2od") || plugins?.getPlugin("onenote2obsidian");
+      const plugin =
+        plugins?.getPlugin("onenote-spatial") ||
+        plugins?.getPlugin("on2od") ||
+        plugins?.getPlugin("onenote2obsidian");
       if (plugin && typeof plugin.openImportModal === "function") {
         plugin.openImportModal();
       }
