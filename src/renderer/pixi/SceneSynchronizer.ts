@@ -2277,7 +2277,6 @@ export class SceneSynchronizer {
       return;
     }
 
-
     const resolved = this.previousScene
       ? SpatialAnchorManager.resolveAnchor(node, this.previousScene)
       : null;

@@ -157,7 +157,7 @@ export class OneNoteStickyNoteView extends ItemView {
         doc !== document);
     if (isPopoutDoc) {
       const titlebars = doc.querySelectorAll(".titlebar, .titlebar-button-container");
-      titlebars.forEach((tb) => ((tb as HTMLElement).classList.add("is-hidden")));
+      titlebars.forEach((tb) => (tb as HTMLElement).classList.add("is-hidden"));
     }
 
     this.setupThemeObserver();
