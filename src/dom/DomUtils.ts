@@ -57,13 +57,16 @@ export function setSanitizedHtml(el: HTMLElement, htmlString: string): void {
   emptyElement(el);
   if (!htmlString) return;
   try {
-    const cleanHtml = DOMPurify.sanitize(htmlString);
+    const cleanHtml = DOMPurify.sanitize(htmlString, {
+      ADD_TAGS: ["input"],
+      ADD_ATTR: ["type", "checked", "disabled", "contenteditable"],
+    });
     const parser = new DOMParser();
     const parsed = parser.parseFromString(cleanHtml, "text/html");
     const doc = el.ownerDocument || document;
-    while (parsed.body.firstChild) {
-      const child = doc.importNode(parsed.body.firstChild, true);
-      el.appendChild(child);
+    const children = Array.from(parsed.body.childNodes);
+    for (const child of children) {
+      el.appendChild(doc.importNode(child, true));
     }
   } catch {
     el.textContent = htmlString;

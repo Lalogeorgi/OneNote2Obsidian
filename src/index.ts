@@ -45,6 +45,7 @@ export default class OneNotePlugin extends Plugin {
   public settings: OneNotePluginSettings = DEFAULT_SETTINGS;
   public coordinator!: HybridViewCoordinator;
   public contextManager: PageContextManager = PageContextManager.getInstance();
+  public isImportingVault: boolean = false;
 
   async onload(): Promise<void> {
     logger.info(DiagnosticCode.GENERAL_INFO, "Initializing OneNote to Obsidian Spatial Plugin");
@@ -402,6 +403,7 @@ export default class OneNotePlugin extends Plugin {
     // 12. Track Frontmatter / Metadata Modifications for Two-Way Sync
     this.registerEvent(
       this.app.vault.on("modify", async (file) => {
+        if (this.isImportingVault) return;
         if (file instanceof TFile && file.extension === "md") {
           try {
             const content = await this.app.vault.read(file);
@@ -473,169 +475,180 @@ export default class OneNotePlugin extends Plugin {
 
     const modal = new ImportProgressModal(this.app, {
       onStartImport: async (file, targetFolder, cts, onProgress) => {
-        onProgress({
-          stage: ProgressStage.READING_FILE,
-          message: `Reading ${file.name}...`,
-          percent: 5,
-        });
-
-        const buffer = await file.arrayBuffer();
-        cts.token.throwIfCancelled();
-
-        // 1. Calculate SHA-256 fingerprint for deduplication
-        let sourceSha256 = "hash_" + Date.now();
+        this.isImportingVault = true;
         try {
-          if (typeof crypto !== "undefined" && crypto.subtle) {
-            const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            sourceSha256 = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-          }
-        } catch {
-          // Fallback to timestamp-based hash if Web Crypto unavailable
-        }
-
-        // 2. Parse using OneNoteParserAdapter
-        const adapter = new OneNoteParserAdapter();
-        const lowerName = file.name.toLowerCase();
-        let notebook: CanonicalNotebook;
-        let extractedAssets: ReadonlyMap<AssetId, ExtractedAsset> = new Map();
-
-        const progressReporter = new ProgressReporter((update) => {
-          onProgress(update);
-        });
-
-        if (lowerName.endsWith(".onepkg")) {
-          notebook = await adapter.parsePackage(buffer, {}, progressReporter, cts.token);
-        } else if (lowerName.endsWith(".onetoc2")) {
-          notebook = await adapter.parseTableOfContents(buffer, {}, progressReporter, cts.token);
-        } else {
-          // .one section file
-          const sectionResult = await adapter.parseSection(buffer, {}, progressReporter, cts.token);
-          extractedAssets = sectionResult.assets;
-          const sectionName = file.name.replace(/\.one$/i, "");
-          const pages =
-            sectionResult.pages && sectionResult.pages.length > 0
-              ? [...sectionResult.pages]
-              : sectionResult.page
-                ? [sectionResult.page]
-                : [];
-
-          if (pages.length === 0) {
-            pages.push({
-              id: IdGenerator.pageId(),
-              title: sectionName,
-              pageLevel: 0,
-              createdTime: Date.now(),
-              modifiedTime: Date.now(),
-              canvasStyle: { backgroundColor: "#FFFFFF" },
-              elements: [],
-            });
-          }
-
-          notebook = {
-            id: IdGenerator.notebookId(),
-            title: sectionName,
-            sectionGroups: [],
-            sections: [
-              {
-                id: IdGenerator.sectionId(),
-                name: sectionName,
-                isEncrypted: false,
-                pages,
-              },
-            ],
-          };
-        }
-
-        cts.token.throwIfCancelled();
-
-        // 3. Publish to Obsidian Vault
-        onProgress({
-          stage: ProgressStage.PUBLISHING_VAULT,
-          message: "Generating notes, spatial sidecars, and attachments...",
-          percent: 80,
-        });
-
-        const rootImportFolder =
-          targetFolder.trim() || this.settings.rootImportFolder || "OneNote2Obsidian";
-        const publishResult = await SemanticVaultPublisher.publish({
-          notebook,
-          extractedAssets,
-          sourceSha256,
-          sourcePath: file.name,
-          pathConfig: {
-            rootImportFolder,
-            attachmentFolder: `${rootImportFolder}/attachments`,
-          },
-          duplicateStrategy: "overwrite",
-        });
-
-        // Write files into Obsidian vault
-        const vault = this.app.vault;
-        const totalFiles = publishResult.files.length;
-        let written = 0;
-
-        for (const genFile of publishResult.files) {
-          cts.token.throwIfCancelled();
-          const normalized = normalizePath(genFile.path);
-
-          // Ensure parent folders exist
-          const parts = normalized.split("/");
-          if (parts.length > 1) {
-            let currentPath = "";
-            for (let i = 0; i < parts.length - 1; i++) {
-              currentPath = currentPath ? `${currentPath}/${parts[i]}` : parts[i]!;
-              if (!(await vault.adapter.exists(currentPath))) {
-                await vault.adapter.mkdir(currentPath);
-              }
-            }
-          }
-
-          if (typeof genFile.content === "string") {
-            await vault.adapter.write(normalized, genFile.content);
-          } else {
-            const buf =
-              genFile.content instanceof Uint8Array
-                ? genFile.content.buffer.slice(
-                    genFile.content.byteOffset,
-                    genFile.content.byteOffset + genFile.content.byteLength
-                  )
-                : genFile.content;
-            await vault.adapter.writeBinary(normalized, buf as ArrayBuffer);
-          }
-
-          written++;
-          const pct = 80 + Math.round((written / Math.max(1, totalFiles)) * 19);
           onProgress({
-            stage: ProgressStage.PUBLISHING_VAULT,
-            message: `Writing vault file: ${parts[parts.length - 1]}`,
-            percent: Math.min(99, pct),
+            stage: ProgressStage.READING_FILE,
+            message: `Reading ${file.name}...`,
+            percent: 5,
           });
 
-          if (written % 5 === 0) {
-            await new Promise((r) => setTimeout(r, 0));
+          const buffer = await file.arrayBuffer();
+          cts.token.throwIfCancelled();
+
+          // 1. Calculate SHA-256 fingerprint for deduplication
+          let sourceSha256 = "hash_" + Date.now();
+          try {
+            if (typeof crypto !== "undefined" && crypto.subtle) {
+              const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+              const hashArray = Array.from(new Uint8Array(hashBuffer));
+              sourceSha256 = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+            }
+          } catch {
+            // Fallback to timestamp-based hash if Web Crypto unavailable
           }
+
+          // 2. Parse using OneNoteParserAdapter
+          const adapter = new OneNoteParserAdapter();
+          const lowerName = file.name.toLowerCase();
+          let notebook: CanonicalNotebook;
+          let extractedAssets: ReadonlyMap<AssetId, ExtractedAsset> = new Map();
+
+          const progressReporter = new ProgressReporter((update) => {
+            onProgress(update);
+          });
+
+          if (lowerName.endsWith(".onepkg")) {
+            notebook = await adapter.parsePackage(buffer, {}, progressReporter, cts.token);
+          } else if (lowerName.endsWith(".onetoc2")) {
+            notebook = await adapter.parseTableOfContents(buffer, {}, progressReporter, cts.token);
+          } else {
+            // .one section file
+            const sectionResult = await adapter.parseSection(
+              buffer,
+              {},
+              progressReporter,
+              cts.token
+            );
+            extractedAssets = sectionResult.assets;
+            const sectionName = file.name.replace(/\.one$/i, "");
+            const pages =
+              sectionResult.pages && sectionResult.pages.length > 0
+                ? [...sectionResult.pages]
+                : sectionResult.page
+                  ? [sectionResult.page]
+                  : [];
+
+            if (pages.length === 0) {
+              pages.push({
+                id: IdGenerator.pageId(),
+                title: sectionName,
+                pageLevel: 0,
+                createdTime: Date.now(),
+                modifiedTime: Date.now(),
+                canvasStyle: { backgroundColor: "#FFFFFF" },
+                elements: [],
+              });
+            }
+
+            notebook = {
+              id: IdGenerator.notebookId(),
+              title: sectionName,
+              sectionGroups: [],
+              sections: [
+                {
+                  id: IdGenerator.sectionId(),
+                  name: sectionName,
+                  isEncrypted: false,
+                  pages,
+                },
+              ],
+            };
+          }
+
+          cts.token.throwIfCancelled();
+
+          // 3. Publish to Obsidian Vault
+          onProgress({
+            stage: ProgressStage.PUBLISHING_VAULT,
+            message: "Generating notes, spatial sidecars, and attachments...",
+            percent: 80,
+          });
+
+          const rootImportFolder =
+            targetFolder.trim() || this.settings.rootImportFolder || "OneNote2Obsidian";
+          const publishResult = await SemanticVaultPublisher.publish({
+            notebook,
+            extractedAssets,
+            sourceSha256,
+            sourcePath: file.name,
+            pathConfig: {
+              rootImportFolder,
+              attachmentFolder: `${rootImportFolder}/attachments`,
+            },
+            duplicateStrategy: "overwrite",
+          });
+
+          // Write files into Obsidian vault
+          const vault = this.app.vault;
+          const totalFiles = publishResult.files.length;
+          let written = 0;
+
+          for (const genFile of publishResult.files) {
+            cts.token.throwIfCancelled();
+            const normalized = normalizePath(genFile.path);
+
+            // Ensure parent folders exist
+            const parts = normalized.split("/");
+            if (parts.length > 1) {
+              let currentPath = "";
+              for (let i = 0; i < parts.length - 1; i++) {
+                currentPath = currentPath ? `${currentPath}/${parts[i]}` : parts[i]!;
+                if (!(await vault.adapter.exists(currentPath))) {
+                  await vault.adapter.mkdir(currentPath);
+                }
+              }
+            }
+
+            if (typeof genFile.content === "string") {
+              await vault.adapter.write(normalized, genFile.content);
+            } else {
+              const buf =
+                genFile.content instanceof Uint8Array
+                  ? genFile.content.buffer.slice(
+                      genFile.content.byteOffset,
+                      genFile.content.byteOffset + genFile.content.byteLength
+                    )
+                  : genFile.content;
+              await vault.adapter.writeBinary(normalized, buf as ArrayBuffer);
+            }
+
+            written++;
+            const pct = 80 + Math.round((written / Math.max(1, totalFiles)) * 19);
+            onProgress({
+              stage: ProgressStage.PUBLISHING_VAULT,
+              message: `Writing vault file: ${parts[parts.length - 1]}`,
+              percent: Math.min(99, pct),
+            });
+
+            // Cooperative yield on every file so progress bar repaints smoothly
+            await new Promise((r) => setTimeout(r, 10));
+          }
+
+          // 4. Register in PageContextManager
+          this.contextManager.registerNotebook(notebook, {
+            sha256: sourceSha256,
+            path: file.name,
+            targetFolder: rootImportFolder,
+          });
+
+          // Track first page to display
+          if (notebook.sections[0]?.pages[0]) {
+            importedFirstPageId = notebook.sections[0].pages[0].id;
+          } else if (notebook.sectionGroups[0]?.sections[0]?.pages[0]) {
+            importedFirstPageId = notebook.sectionGroups[0].sections[0].pages[0].id;
+          }
+
+          onProgress({
+            stage: ProgressStage.COMPLETE,
+            message: `Successfully imported ${publishResult.importedPages} pages into "${rootImportFolder}"!`,
+            percent: 100,
+          });
+
+          await new Promise((r) => setTimeout(r, 20));
+        } finally {
+          this.isImportingVault = false;
         }
-
-        // 4. Register in PageContextManager
-        this.contextManager.registerNotebook(notebook, {
-          sha256: sourceSha256,
-          path: file.name,
-          targetFolder: rootImportFolder,
-        });
-
-        // Track first page to display
-        if (notebook.sections[0]?.pages[0]) {
-          importedFirstPageId = notebook.sections[0].pages[0].id;
-        } else if (notebook.sectionGroups[0]?.sections[0]?.pages[0]) {
-          importedFirstPageId = notebook.sectionGroups[0].sections[0].pages[0].id;
-        }
-
-        onProgress({
-          stage: ProgressStage.COMPLETE,
-          message: `Successfully imported ${publishResult.importedPages} pages into "${rootImportFolder}"!`,
-          percent: 100,
-        });
       },
       onSuccess: () => {
         if (importedFirstPageId) {

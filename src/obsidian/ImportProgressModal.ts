@@ -152,8 +152,12 @@ export class ImportProgressModal extends Modal {
       );
 
       new Notice(`Successfully imported "${this.selectedFile.name}"!`);
-      this.options.onSuccess?.();
       this.close();
+      if (this.options.onSuccess) {
+        setTimeout(() => {
+          this.options.onSuccess?.();
+        }, 100);
+      }
     } catch (err: any) {
       this.handleImportError(err);
     } finally {

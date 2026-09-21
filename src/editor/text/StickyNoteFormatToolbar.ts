@@ -410,8 +410,9 @@ export class StickyNoteFormatToolbar {
       initialHtml.trim() !== "\u00A0"
     ) {
       const parsed = new DOMParser().parseFromString(initialHtml, "text/html");
-      while (parsed.body.firstChild) {
-        textSpan.appendChild(doc.importNode(parsed.body.firstChild, true));
+      const children = Array.from(parsed.body.childNodes);
+      for (const child of children) {
+        textSpan.appendChild(doc.importNode(child, true));
       }
     } else {
       textSpan.appendChild(doc.createElement("br"));
@@ -428,8 +429,9 @@ export class StickyNoteFormatToolbar {
     const textSpan = checkItem.querySelector(".onenote-sticky-check-text") as HTMLElement | null;
     const p = doc.createElement("div");
     if (textSpan && textSpan.hasChildNodes()) {
-      while (textSpan.firstChild) {
-        p.appendChild(textSpan.firstChild);
+      const children = Array.from(textSpan.childNodes);
+      for (const child of children) {
+        p.appendChild(child);
       }
     } else {
       p.appendChild(doc.createElement("br"));
