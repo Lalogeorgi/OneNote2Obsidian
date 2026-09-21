@@ -280,7 +280,7 @@ export default class OneNotePlugin extends Plugin {
     });
 
     // 9. Enhance [!spatial] callout banners with interactive launch button
-    this.registerMarkdownPostProcessor((element, _context) => {
+    this.registerMarkdownPostProcessor((element, context) => {
       const callouts: HTMLElement[] = [];
       if (element.getAttribute?.("data-callout") === "spatial") {
         callouts.push(element);
@@ -288,6 +288,7 @@ export default class OneNotePlugin extends Plugin {
       element.querySelectorAll<HTMLElement>('[data-callout="spatial"]').forEach((el) => {
         if (!callouts.includes(el)) callouts.push(el);
       });
+      const sourcePath = context.sourcePath;
       callouts.forEach((callout) => {
         if (callout.querySelector(".onenote-callout-spatial-btn")) return;
 
@@ -309,9 +310,9 @@ export default class OneNotePlugin extends Plugin {
           e.preventDefault();
           e.stopPropagation();
           if (href) {
-            this.handleSpatialUri(href);
+            this.handleSpatialUri(href, sourcePath);
           } else {
-            this.coordinator.openSpatialView();
+            this.coordinator.openSpatialView(undefined, { sourcePath });
           }
         });
 
@@ -410,7 +411,7 @@ export default class OneNotePlugin extends Plugin {
     logger.info(DiagnosticCode.GENERAL_INFO, "OneNote Spatial Plugin loaded successfully");
   }
 
-  public async handleSpatialUri(href: string): Promise<void> {
+  public async handleSpatialUri(href: string, defaultSourcePath?: string): Promise<void> {
     try {
       const queryIdx = href.indexOf("?");
       const params: Record<string, string> = {};
@@ -420,6 +421,9 @@ export default class OneNotePlugin extends Plugin {
         searchParams.forEach((val, key) => {
           params[key] = val;
         });
+      }
+      if (!params.source && defaultSourcePath) {
+        params.source = defaultSourcePath;
       }
       await this.coordinator.handleUri(params);
     } catch (err) {

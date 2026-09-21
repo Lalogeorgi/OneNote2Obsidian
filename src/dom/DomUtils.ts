@@ -18,10 +18,25 @@ export function setSvgContent(el: HTMLElement, svgString: string): void {
   if (!svgString) return;
   try {
     const parser = new DOMParser();
-    const parsed = parser.parseFromString(svgString, "image/svg+xml");
-    const svgEl = parsed.documentElement;
-    if (svgEl && svgEl.tagName.toLowerCase() === "svg") {
-      const imported = el.ownerDocument ? el.ownerDocument.importNode(svgEl, true) : svgEl;
+    // Use HTML parser first: natively parses SVG tags without strict xmlns declaration
+    const parsedHtml = parser.parseFromString(svgString, "text/html");
+    const svgEl = parsedHtml.body.querySelector("svg");
+    if (svgEl) {
+      const doc = el.ownerDocument || document;
+      const imported = doc.importNode(svgEl, true);
+      el.appendChild(imported);
+      return;
+    }
+
+    // Fallback: XML parser with xmlns injection if needed
+    const normalizedSvg = svgString.includes("xmlns")
+      ? svgString
+      : svgString.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"');
+    const parsedXml = parser.parseFromString(normalizedSvg, "image/svg+xml");
+    const xmlEl = parsedXml.documentElement;
+    if (xmlEl && xmlEl.tagName.toLowerCase() === "svg") {
+      const doc = el.ownerDocument || document;
+      const imported = doc.importNode(xmlEl, true);
       el.appendChild(imported);
     }
   } catch {

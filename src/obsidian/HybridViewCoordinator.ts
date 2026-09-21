@@ -19,7 +19,8 @@ export class HybridViewCoordinator {
    */
   public async resolveCanonicalPage(
     pageId?: PageId,
-    sidecarHint?: string
+    sidecarHint?: string,
+    sourceHint?: string
   ): Promise<CanonicalPage | null> {
     // 1. In-memory check
     if (pageId) {
@@ -74,6 +75,19 @@ export class HybridViewCoordinator {
         if (loaded) return loaded;
       }
 
+      // Try relative to source hint path if provided
+      if (sourceHint) {
+        const sourceFile = vault.getAbstractFileByPath(sourceHint);
+        if (sourceFile?.parent) {
+          const relPath = `${sourceFile.parent.path}/${decodedHint}`;
+          file = vault.getAbstractFileByPath(relPath);
+          if (file instanceof TFile) {
+            const loaded = await loadFromSidecarFile(file);
+            if (loaded) return loaded;
+          }
+        }
+      }
+
       // Try relative to active file parent
       const activeFile = this.app.workspace.getActiveFile();
       if (activeFile?.parent) {
@@ -84,9 +98,41 @@ export class HybridViewCoordinator {
           if (loaded) return loaded;
         }
       }
+
+      // Fast in-memory check by exact filename match without disk reading
+      if (!decodedHint.includes("/")) {
+        const files = vault.getFiles();
+        const matchingFile = files.find((f) => f.name === decodedHint);
+        if (matchingFile instanceof TFile) {
+          const loaded = await loadFromSidecarFile(matchingFile);
+          if (loaded) return loaded;
+        }
+      }
     }
 
-    // 3. Check active Markdown file frontmatter
+    // 3. Check source hint Markdown file frontmatter if provided
+    if (sourceHint) {
+      const sourceFile = vault.getAbstractFileByPath(sourceHint);
+      if (sourceFile instanceof TFile && sourceFile.extension === "md") {
+        try {
+          const content = await vault.read(sourceFile);
+          const foundPageId = this.contextManager.parseFrontmatterForPageId(content);
+          if (!pageId || foundPageId === pageId) {
+            const parentPath = sourceFile.parent?.path ? `${sourceFile.parent.path}/` : "";
+            const expectedSidecar = `${parentPath}${sourceFile.basename}.onecanvas.json`;
+            const sidecarFile = vault.getAbstractFileByPath(expectedSidecar);
+            if (sidecarFile instanceof TFile) {
+              const loaded = await loadFromSidecarFile(sidecarFile);
+              if (loaded) return loaded;
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    // 4. Check active Markdown file frontmatter
     const activeFile = this.app.workspace.getActiveFile();
     if (activeFile instanceof TFile && activeFile.extension === "md") {
       try {
@@ -106,13 +152,17 @@ export class HybridViewCoordinator {
       }
     }
 
-    // 4. Vault-wide fallback search for matching sidecar
+    // 5. Vault-wide search strictly when a specific pageId is requested
+    if (!pageId) {
+      return null;
+    }
+
     const files = vault.getFiles();
     const sidecars = files.filter((f) => f.name.endsWith(".onecanvas.json"));
 
     // Fast check by filename or pageId substring
     for (const sc of sidecars) {
-      if (pageId && sc.name.includes(pageId)) {
+      if (sc.name.includes(pageId)) {
         const loaded = await loadFromSidecarFile(sc);
         if (loaded) return loaded;
       }
@@ -121,9 +171,9 @@ export class HybridViewCoordinator {
     for (const sc of sidecars) {
       try {
         const json = await vault.read(sc);
-        if (!pageId || json.includes(pageId)) {
+        if (json.includes(pageId)) {
           const scene = PageSceneSerializer.deserialize(json);
-          if (!pageId || scene.pageId === pageId) {
+          if (scene.pageId === pageId) {
             const loaded = await loadFromSidecarFile(sc);
             if (loaded) return loaded;
           }
@@ -145,10 +195,24 @@ export class HybridViewCoordinator {
       leaf?: WorkspaceLeaf;
       newLeaf?: boolean | "tab" | "split";
       sidecarPath?: string;
+      sourcePath?: string;
     } = {}
   ): Promise<OneNoteItemView | null> {
-    const targetPageId = pageId ?? this.contextManager.getActivePageId();
     const { workspace } = this.app;
+
+    // 1. Capture active file and source context BEFORE switching leaves
+    const activeFile = workspace.getActiveFile();
+    const sourceHint =
+      options.sourcePath || (activeFile instanceof TFile ? activeFile.path : undefined);
+
+    const targetPageId = pageId ?? this.contextManager.getActivePageId();
+
+    // 2. Resolve canonical page before touching leaf state
+    const canonicalPage = await this.resolveCanonicalPage(
+      targetPageId || undefined,
+      options.sidecarPath,
+      sourceHint
+    );
 
     let leaf: WorkspaceLeaf | null = options.leaf ?? null;
 
@@ -170,13 +234,6 @@ export class HybridViewCoordinator {
       active: true,
     });
 
-    await workspace.revealLeaf(leaf);
-
-    const canonicalPage = await this.resolveCanonicalPage(
-      targetPageId || undefined,
-      options.sidecarPath
-    );
-
     const view = leaf.view instanceof OneNoteItemView ? leaf.view : null;
 
     if (canonicalPage) {
@@ -184,10 +241,11 @@ export class HybridViewCoordinator {
       if (view) {
         view.loadPage(canonicalPage);
       }
-      return view;
     } else if (targetPageId) {
       this.contextManager.setActivePage(targetPageId);
     }
+
+    await workspace.revealLeaf(leaf);
 
     return view;
   }
@@ -268,6 +326,7 @@ export class HybridViewCoordinator {
   public async handleUri(params: Record<string, string>): Promise<void> {
     const pageId = (params.page || params.pageId) as PageId | undefined;
     const sidecar = params.sidecar || params.file;
+    const source = params.source || params.markdown;
     const action = params.action;
 
     if (action === "split") {
@@ -279,9 +338,9 @@ export class HybridViewCoordinator {
     } else if (action === "markdown") {
       await this.openMarkdownView(pageId);
     } else if (sidecar) {
-      await this.openSpatialView(pageId, { sidecarPath: sidecar });
+      await this.openSpatialView(pageId, { sidecarPath: sidecar, sourcePath: source });
     } else {
-      await this.openSpatialView(pageId);
+      await this.openSpatialView(pageId, { sourcePath: source });
     }
   }
 

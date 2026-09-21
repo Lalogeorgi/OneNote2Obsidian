@@ -423,6 +423,10 @@ export class OneNoteItemView extends ItemView {
 
   private async autoResolveActiveDocument(): Promise<void> {
     try {
+      if (this.activePage) return;
+      const activeFile = this.app.workspace.getActiveFile();
+      if (!activeFile || activeFile.extension !== "md") return;
+
       const plugins = typeof this.app !== "undefined" ? (this.app as any)?.plugins : undefined;
       const plugin =
         plugins?.getPlugin?.("onenote-spatial") ||
@@ -432,7 +436,11 @@ export class OneNoteItemView extends ItemView {
         plugins?.getPlugin?.("onenote2obsidian") ||
         plugins?.plugins?.["onenote2obsidian"];
       if (plugin?.coordinator && !this.activePage) {
-        const page = await plugin.coordinator.resolveCanonicalPage();
+        const page = await plugin.coordinator.resolveCanonicalPage(
+          undefined,
+          undefined,
+          activeFile.path
+        );
         if (page && !this.activePage) {
           this.loadPage(page);
         }

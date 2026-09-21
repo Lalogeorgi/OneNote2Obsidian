@@ -158,6 +158,12 @@ export class OneNoteStickyNoteView extends ItemView {
     if (isPopoutDoc) {
       const titlebars = doc.querySelectorAll(".titlebar, .titlebar-button-container");
       titlebars.forEach((tb) => (tb as HTMLElement).classList.add("is-hidden"));
+      if (childWin && typeof childWin.requestAnimationFrame === "function") {
+        childWin.requestAnimationFrame(() => {
+          const lateTitlebars = doc.querySelectorAll(".titlebar, .titlebar-button-container");
+          lateTitlebars.forEach((tb) => (tb as HTMLElement).classList.add("is-hidden"));
+        });
+      }
     }
 
     this.setupThemeObserver();
@@ -565,52 +571,29 @@ export class OneNoteStickyNoteView extends ItemView {
     }
 
     try {
-      // 1. Try childWin's own require first (if window was opened with node integration)
-      if ((childWin as any).require) {
-        const remoteRaw =
-          (childWin as any).require("@electron/remote") ||
-          (childWin as any).require("electron")?.remote;
-        const remote = remoteRaw?.getCurrentWindow ? remoteRaw : remoteRaw?.remote;
-        const win = remote?.getCurrentWindow?.();
-        if (win) return win;
-      }
+      // Safe check for electron remote without filesystem crawling
+      const electron = typeof window !== "undefined" ? (window as any).require?.("electron") : null;
+      if (electron?.remote?.BrowserWindow) {
+        const allWins = electron.remote.BrowserWindow.getAllWindows();
+        const mainWin = electron.remote.getCurrentWindow?.();
 
-      // 2. Fall back to finding the child window in remote.BrowserWindow.getAllWindows()
-      const electron = (window as any).require?.("electron");
-      const remoteRaw = (window as any).require?.("@electron/remote") || electron?.remote;
-      const remote = remoteRaw?.BrowserWindow ? remoteRaw : remoteRaw?.remote;
-      if (!remote?.BrowserWindow) return null;
+        // Filter out the main Obsidian window immediately
+        const popoutWins = allWins.filter((bw: any) => !mainWin || bw.id !== mainWin.id);
+        if (popoutWins.length === 0) return null;
 
-      const allWins = remote.BrowserWindow.getAllWindows();
-      const mainWin = remote.getCurrentWindow?.();
+        // Match by unique noteId in document/window title if present
+        if (this.noteId) {
+          const match = popoutWins.find((bw: any) => {
+            const title = bw.getTitle?.() || "";
+            return title.includes(this.noteId);
+          });
+          if (match) return match;
+        }
 
-      // Filter out the main Obsidian window immediately
-      const popoutWins = allWins.filter((bw: any) => !mainWin || bw.id !== mainWin.id);
-      if (popoutWins.length === 0) return null;
-
-      // Match by unique noteId in document/window title if present
-      if (this.noteId) {
-        const match = popoutWins.find((bw: any) => {
-          const title = bw.getTitle?.() || "";
-          return title.includes(this.noteId);
-        });
-        if (match) return match;
-      }
-
-      // Match by screen coordinates
-      const screenX = childWin.screenX;
-      const screenY = childWin.screenY;
-      if (typeof screenX === "number" && typeof screenY === "number") {
-        const match = popoutWins.find((bw: any) => {
-          const b = bw.getBounds?.();
-          return b && Math.abs(b.x - screenX) <= 20 && Math.abs(b.y - screenY) <= 20;
-        });
-        if (match) return match;
-      }
-
-      // If exactly one non-main popout window exists, use it
-      if (popoutWins.length === 1) {
-        return popoutWins[0];
+        // If exactly one non-main popout window exists, use it
+        if (popoutWins.length === 1) {
+          return popoutWins[0];
+        }
       }
     } catch {
       // Non-electron/fallback
@@ -619,11 +602,13 @@ export class OneNoteStickyNoteView extends ItemView {
   }
 
   public minimizeWindow(): void {
-    const popoutBW = this.getPopoutBrowserWindow();
-    if (popoutBW?.minimize) {
-      popoutBW.minimize();
-      return;
-    }
+    try {
+      const popoutBW = this.getPopoutBrowserWindow();
+      if (popoutBW?.minimize) {
+        popoutBW.minimize();
+        return;
+      }
+    } catch {}
     this.toggleCompactMinimize();
   }
 
@@ -635,14 +620,17 @@ export class OneNoteStickyNoteView extends ItemView {
   public closeWindow(): void {
     this.persistWindowBounds();
     try {
+      this.leaf.detach();
+      return;
+    } catch {}
+
+    try {
       const doc = this.contentEl.ownerDocument;
       const win = doc?.defaultView;
       if (win && typeof win.close === "function" && win !== window) {
         win.close();
-        return;
       }
     } catch {}
-    this.leaf.detach();
   }
 
   public togglePinInFront(): void {

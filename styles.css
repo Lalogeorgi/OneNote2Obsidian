@@ -37,7 +37,26 @@
 }
 
 .onenote-empty-state.is-hidden {
-  display: none;
+  display: none !important;
+}
+
+/* Generic visibility utility */
+.is-hidden,
+.view-header.is-hidden,
+.workspace-tab-header-container.is-hidden,
+.titlebar.is-hidden,
+.titlebar-button-container.is-hidden {
+  display: none !important;
+}
+
+/* Authentic Sticky Note Popout Windows: suppress Obsidian default headers and titlebars */
+.workspace-leaf:has(.onenote-sticky-popout-leaf-container) .view-header,
+.workspace-tabs:has(.onenote-sticky-popout-leaf-container) .workspace-tab-header-container,
+body.is-popout-window:has(.onenote-sticky-popout-leaf-container) .titlebar,
+body.is-popout-window:has(.onenote-sticky-popout-leaf-container) .titlebar-button-container,
+body.mod-popout:has(.onenote-sticky-popout-leaf-container) .titlebar,
+body.mod-popout:has(.onenote-sticky-popout-leaf-container) .titlebar-button-container {
+  display: none !important;
 }
 
 .onenote-empty-title {
@@ -389,7 +408,10 @@
   font-weight: 500;
   color: var(--text-muted);
   cursor: pointer;
-  transition: color 0.12s ease, border-color 0.12s ease, background-color 0.12s ease;
+  transition:
+    color 0.12s ease,
+    border-color 0.12s ease,
+    background-color 0.12s ease;
 }
 
 .onenote-ribbon-tab:hover {
@@ -506,7 +528,9 @@
   font-size: 11px;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.12s ease, border-color 0.12s ease;
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease;
   user-select: none;
 }
 
@@ -557,7 +581,9 @@
   cursor: pointer;
   border-radius: 3px;
   padding-bottom: 2px;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
   outline: none;
   flex-shrink: 0;
 }
@@ -1251,19 +1277,27 @@
   border-radius: 8px;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.08),
+    0 1px 3px rgba(0, 0, 0, 0.05);
   border: 1px solid rgba(0, 0, 0, 0.12);
-  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  transition:
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
   overflow: visible;
   user-select: text;
 }
 
 .onenote-sticky-note:hover {
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.12),
+    0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
 .onenote-sticky-note.is-selected {
-  box-shadow: 0 0 0 2px var(--interactive-accent), 0 8px 24px rgba(0, 0, 0, 0.18) !important;
+  box-shadow:
+    0 0 0 2px var(--interactive-accent),
+    0 8px 24px rgba(0, 0, 0, 0.18) !important;
   border-color: var(--interactive-accent) !important;
 }
 
@@ -1357,7 +1391,9 @@
   line-height: 1;
   color: inherit;
   opacity: 0.7;
-  transition: opacity 0.12s ease, background-color 0.12s ease;
+  transition:
+    opacity 0.12s ease,
+    background-color 0.12s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1555,7 +1591,9 @@
 }
 
 .onenote-sticky-note.is-link-highlighted {
-  box-shadow: 0 0 0 2px var(--interactive-accent), 0 8px 24px rgba(99, 102, 241, 0.25) !important;
+  box-shadow:
+    0 0 0 2px var(--interactive-accent),
+    0 8px 24px rgba(99, 102, 241, 0.25) !important;
 }
 
 .onenote-relationship-popover {
@@ -1643,34 +1681,35 @@
   padding: 1px 5px;
   font-size: 10px;
   font-weight: 600;
-  color: var(--text-accent, #0891B2);
+  color: var(--text-accent, #0891b2);
   cursor: pointer;
   transition: all 0.15s ease;
   line-height: 1.2;
 }
 
 .onenote-sticky-anchor-badge:hover {
-  background-color: var(--interactive-accent, #0891B2);
-  color: var(--text-on-accent, #FFFFFF);
-  border-color: var(--interactive-accent, #0891B2);
+  background-color: var(--interactive-accent, #0891b2);
+  color: var(--text-on-accent, #ffffff);
+  border-color: var(--interactive-accent, #0891b2);
   transform: scale(1.05);
 }
 
 .onenote-sticky-anchor-badge.is-broken {
   background-color: rgba(245, 158, 11, 0.15);
   border-color: rgba(245, 158, 11, 0.4);
-  color: var(--text-warning, #D97706);
+  color: var(--text-warning, #d97706);
   animation: onenote-pulse-warning 2s infinite ease-in-out;
 }
 
 .onenote-sticky-anchor-badge.is-broken:hover {
-  background-color: var(--text-warning, #D97706);
-  color: var(--text-on-accent, #FFFFFF);
-  border-color: var(--text-warning, #D97706);
+  background-color: var(--text-warning, #d97706);
+  color: var(--text-on-accent, #ffffff);
+  border-color: var(--text-warning, #d97706);
 }
 
 @keyframes onenote-pulse-warning {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
   }
   50% {
@@ -1722,7 +1761,7 @@
 }
 
 .onenote-anchor-status.is-broken {
-  color: var(--text-warning, #D97706);
+  color: var(--text-warning, #d97706);
 }
 
 .onenote-anchor-field {
@@ -1801,7 +1840,10 @@
   backdrop-filter: blur(8px);
   pointer-events: all;
   box-sizing: border-box;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
   z-index: 1;
 }
 
@@ -1813,7 +1855,9 @@
 .onenote-spatial-group.is-selected {
   border-style: solid;
   border-color: var(--interactive-accent);
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25), 0 8px 24px rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 0 0 2px rgba(59, 130, 246, 0.25),
+    0 8px 24px rgba(0, 0, 0, 0.08);
   background-color: rgba(59, 130, 246, 0.08);
 }
 
@@ -1939,7 +1983,7 @@
   padding: 1px 5px;
   border-radius: 6px;
   background-color: rgba(245, 158, 11, 0.2);
-  color: var(--text-warning, #D97706);
+  color: var(--text-warning, #d97706);
 }
 
 .onenote-annotation-content {
@@ -1990,7 +2034,9 @@
   border-radius: 8px;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28), 0 4px 12px rgba(0, 0, 0, 0.12);
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.28),
+    0 4px 12px rgba(0, 0, 0, 0.12);
   border: 1px solid rgba(0, 0, 0, 0.15);
   overflow: visible;
   user-select: text;
@@ -2002,16 +2048,24 @@
 }
 
 .theme-dark .onenote-floating-window {
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), 0 4px 14px rgba(0, 0, 0, 0.35);
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.55),
+    0 4px 14px rgba(0, 0, 0, 0.35);
   border-color: rgba(255, 255, 255, 0.12);
 }
 
 .onenote-floating-window.is-pinned-in-front {
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35), 0 6px 18px rgba(0, 0, 0, 0.16), 0 0 0 1.5px var(--interactive-accent, #7719aa) !important;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.35),
+    0 6px 18px rgba(0, 0, 0, 0.16),
+    0 0 0 1.5px var(--interactive-accent, #7719aa) !important;
 }
 
 .theme-dark .onenote-floating-window.is-pinned-in-front {
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.65), 0 6px 18px rgba(0, 0, 0, 0.45), 0 0 0 1.5px var(--interactive-accent, #a855f7) !important;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.65),
+    0 6px 18px rgba(0, 0, 0, 0.45),
+    0 0 0 1.5px var(--interactive-accent, #a855f7) !important;
 }
 
 .onenote-floating-pin-btn.is-pinned,
@@ -2043,7 +2097,9 @@
 .popout-window:has(.onenote-sticky-popout-leaf-container) .view-header,
 .popout-window:has(.onenote-sticky-popout-leaf-container) .workspace-leaf-header,
 .popout-window .workspace-leaf:has(.onenote-sticky-popout-leaf-container) .view-header,
-.popout-window .workspace-leaf:has(.onenote-sticky-popout-leaf-container) .workspace-tab-header-container {
+.popout-window
+  .workspace-leaf:has(.onenote-sticky-popout-leaf-container)
+  .workspace-tab-header-container {
   display: none !important;
   height: 0 !important;
   min-height: 0 !important;
@@ -2103,7 +2159,9 @@
 }
 
 .onenote-floating-window.is-dragging {
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.38), 0 8px 20px rgba(0, 0, 0, 0.2);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.38),
+    0 8px 20px rgba(0, 0, 0, 0.2);
   cursor: grabbing;
 }
 
@@ -2226,7 +2284,10 @@
   border-style: dashed !important;
   opacity: 0.65;
   cursor: pointer !important;
-  transition: opacity 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .onenote-sticky-note.is-popped-out:hover {
@@ -2331,7 +2392,10 @@
   cursor: pointer;
   pointer-events: auto !important;
   user-select: none;
-  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    border-color 0.12s ease;
 }
 
 .onenote-attachment-card:hover {
@@ -2474,7 +2538,9 @@
   line-height: 1;
   color: inherit;
   opacity: 0.75;
-  transition: opacity 0.12s ease, background-color 0.12s ease;
+  transition:
+    opacity 0.12s ease,
+    background-color 0.12s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2643,7 +2709,9 @@
   flex-direction: column;
   overflow: hidden;
   cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
 }
 
 .onenote-sticky-hub-card:hover {
@@ -2724,7 +2792,9 @@
   flex-direction: column;
   background-color: var(--background-primary);
   border-bottom: 1px solid var(--background-modifier-border);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 4px 14px rgba(0, 0, 0, 0.06);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.05),
+    0 4px 14px rgba(0, 0, 0, 0.06);
   backdrop-filter: blur(12px);
   user-select: none;
   transition: all 0.2s ease;
@@ -2828,7 +2898,9 @@
   color: #ffffff;
   border-radius: 6px;
   box-shadow: 0 2px 6px rgba(119, 25, 170, 0.28);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .onenote-brand-icon:hover {
@@ -2961,7 +3033,9 @@
 
 .onenote-zoom-badge:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--background-primary), 0 0 0 4px var(--interactive-accent, #7719aa);
+  box-shadow:
+    0 0 0 2px var(--background-primary),
+    0 0 0 4px var(--interactive-accent, #7719aa);
 }
 
 .onenote-collapse-btn {
@@ -2982,7 +3056,9 @@
 .onenote-sticky-dot-btn:focus-visible,
 .onenote-page-tint-swatch:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--background-primary), 0 0 0 4px var(--interactive-accent, #7719aa);
+  box-shadow:
+    0 0 0 2px var(--background-primary),
+    0 0 0 4px var(--interactive-accent, #7719aa);
   z-index: 2;
 }
 
@@ -3040,7 +3116,13 @@
 .onenote-ribbon-divider {
   width: 1px;
   height: 48px;
-  background: linear-gradient(to bottom, transparent, var(--background-modifier-border) 20%, var(--background-modifier-border) 80%, transparent);
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--background-modifier-border) 20%,
+    var(--background-modifier-border) 80%,
+    transparent
+  );
   margin: 4px 4px;
   align-self: center;
 }
@@ -3122,7 +3204,9 @@
   background-color: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   border-radius: 8px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.2),
+    0 2px 8px rgba(0, 0, 0, 0.08);
   padding: 10px;
   min-width: 200px;
   backdrop-filter: blur(12px);
@@ -3448,12 +3532,16 @@
   right: 0;
   height: 100%;
   pointer-events: none;
-  background-image: 
+  background-image:
     repeating-linear-gradient(to right, #888 0, #888 1px, transparent 1px, transparent 10px),
     repeating-linear-gradient(to right, #444 0, #444 1px, transparent 1px, transparent 50px);
-  background-size: 100% 12px, 100% 20px;
+  background-size:
+    100% 12px,
+    100% 20px;
   background-repeat: no-repeat;
-  background-position: top left, top left;
+  background-position:
+    top left,
+    top left;
 }
 
 /* --- Canvas Context Menu --- */
@@ -3613,15 +3701,21 @@
   display: flex;
   flex-direction: column;
   border-radius: 8px;
-  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 8px 26px rgba(0, 0, 0, 0.2),
+    0 2px 6px rgba(0, 0, 0, 0.08);
   border: 1px solid rgba(0, 0, 0, 0.14);
   overflow: hidden;
   font-family: var(--font-interface, inherit);
-  transition: box-shadow 0.2s ease, opacity 0.15s ease;
+  transition:
+    box-shadow 0.2s ease,
+    opacity 0.15s ease;
 }
 
 .onenote-floating-window.is-dragging {
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.3),
+    0 4px 12px rgba(0, 0, 0, 0.15);
   cursor: move !important;
 }
 
@@ -3673,7 +3767,9 @@
   padding: 2px 6px;
   outline: none;
   font-family: inherit;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .onenote-floating-title-input:hover,
@@ -3769,7 +3865,9 @@
   background: var(--background-primary, #ffffff);
   border: 1px solid var(--background-modifier-border, rgba(0, 0, 0, 0.12));
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.18),
+    0 2px 6px rgba(0, 0, 0, 0.08);
   padding: 8px;
   min-width: 140px;
   animation: onenote-popover-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
@@ -3810,7 +3908,9 @@
   cursor: pointer;
   box-sizing: border-box;
   margin: 0 auto;
-  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s ease;
+  transition:
+    transform 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.15s ease;
 }
 
 .onenote-color-swatch:hover {
@@ -3819,19 +3919,48 @@
 }
 
 .onenote-color-swatch.is-active {
-  box-shadow: 0 0 0 2px var(--interactive-accent, #7719aa), inset 0 0 0 2px #ffffff;
+  box-shadow:
+    0 0 0 2px var(--interactive-accent, #7719aa),
+    inset 0 0 0 2px #ffffff;
 }
 
 /* Color swatches in Sticky Note menu popovers */
-.onenote-color-swatch.onenote-color-yellow { background-color: #FFF9C4 !important; border-color: #FDE047 !important; }
-.onenote-color-swatch.onenote-color-green { background-color: #DCFCE7 !important; border-color: #86EFAC !important; }
-.onenote-color-swatch.onenote-color-pink { background-color: #FCE7F3 !important; border-color: #F472B6 !important; }
-.onenote-color-swatch.onenote-color-blue { background-color: #E0F2FE !important; border-color: #7DD3FC !important; }
-.onenote-color-swatch.onenote-color-purple { background-color: #F3E8FF !important; border-color: #C084FC !important; }
-.onenote-color-swatch.onenote-color-orange { background-color: #FFEDD5 !important; border-color: #FDBA74 !important; }
-.onenote-color-swatch.onenote-color-teal { background-color: #CCFBF1 !important; border-color: #5EEAD4 !important; }
-.onenote-color-swatch.onenote-color-charcoal { background-color: #334155 !important; border-color: #475569 !important; }
-.onenote-color-swatch.onenote-color-gray { background-color: #F1F5F9 !important; border-color: #CBD5E1 !important; }
+.onenote-color-swatch.onenote-color-yellow {
+  background-color: #fff9c4 !important;
+  border-color: #fde047 !important;
+}
+.onenote-color-swatch.onenote-color-green {
+  background-color: #dcfce7 !important;
+  border-color: #86efac !important;
+}
+.onenote-color-swatch.onenote-color-pink {
+  background-color: #fce7f3 !important;
+  border-color: #f472b6 !important;
+}
+.onenote-color-swatch.onenote-color-blue {
+  background-color: #e0f2fe !important;
+  border-color: #7dd3fc !important;
+}
+.onenote-color-swatch.onenote-color-purple {
+  background-color: #f3e8ff !important;
+  border-color: #c084fc !important;
+}
+.onenote-color-swatch.onenote-color-orange {
+  background-color: #ffedd5 !important;
+  border-color: #fdba74 !important;
+}
+.onenote-color-swatch.onenote-color-teal {
+  background-color: #ccfbf1 !important;
+  border-color: #5eead4 !important;
+}
+.onenote-color-swatch.onenote-color-charcoal {
+  background-color: #334155 !important;
+  border-color: #475569 !important;
+}
+.onenote-color-swatch.onenote-color-gray {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+}
 
 /* Menu items */
 .onenote-menu-list {
@@ -3853,7 +3982,9 @@
   border-radius: 6px;
   cursor: pointer;
   text-align: left;
-  transition: background-color 0.12s ease, color 0.12s ease;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
 }
 
 .onenote-menu-item:hover {
@@ -3910,7 +4041,9 @@
 }
 
 .theme-dark .onenote-color-swatch.is-active {
-  box-shadow: 0 0 0 2px var(--interactive-accent, #7719aa), inset 0 0 0 2px #1e1e1e;
+  box-shadow:
+    0 0 0 2px var(--interactive-accent, #7719aa),
+    inset 0 0 0 2px #1e1e1e;
 }
 
 /* 7. Markdown Spatial Callout Interactive Button */
@@ -3927,7 +4060,9 @@
   color: var(--text-on-accent, #ffffff);
   border: none;
   cursor: pointer;
-  transition: opacity 0.15s ease, transform 0.1s ease;
+  transition:
+    opacity 0.15s ease,
+    transform 0.1s ease;
 }
 
 .onenote-callout-spatial-btn:hover {
@@ -4063,7 +4198,9 @@
   border-radius: 4px;
   font-size: 12px;
   opacity: 0.6;
-  transition: opacity 0.12s ease, background-color 0.12s ease;
+  transition:
+    opacity 0.12s ease,
+    background-color 0.12s ease;
 }
 
 .onenote-prop-del-btn:hover {
@@ -4305,7 +4442,9 @@ body.mod-popout:has(.onenote-sticky-popout-leaf-container) .titlebar-inner {
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.12s ease, border-color 0.12s ease;
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease;
 }
 
 .onenote-floating-hub-btn:hover {
