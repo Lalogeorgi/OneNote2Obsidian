@@ -341,14 +341,7 @@ export class OneNoteItemView extends ItemView {
     };
 
     // 3. Create Authentic OneNote Ribbon, HUD & Empty State
-    const plugins = typeof this.app !== "undefined" ? (this.app as any)?.plugins : undefined;
-    const pluginInstance =
-      plugins?.getPlugin?.("onenote-spatial") ||
-      plugins?.plugins?.["onenote-spatial"] ||
-      plugins?.getPlugin?.("on2od") ||
-      plugins?.plugins?.["on2od"] ||
-      plugins?.getPlugin?.("onenote2obsidian") ||
-      plugins?.plugins?.["onenote2obsidian"];
+    const pluginInstance = this.getPluginInstance();
     const defaultStickyColor = pluginInstance?.settings?.defaultStickyNoteColor || "yellow";
 
     this.ribbon = new OneNoteRibbon({
@@ -427,14 +420,7 @@ export class OneNoteItemView extends ItemView {
       const activeFile = this.app.workspace.getActiveFile();
       if (!activeFile || activeFile.extension !== "md") return;
 
-      const plugins = typeof this.app !== "undefined" ? (this.app as any)?.plugins : undefined;
-      const plugin =
-        plugins?.getPlugin?.("onenote-spatial") ||
-        plugins?.plugins?.["onenote-spatial"] ||
-        plugins?.getPlugin?.("on2od") ||
-        plugins?.plugins?.["on2od"] ||
-        plugins?.getPlugin?.("onenote2obsidian") ||
-        plugins?.plugins?.["onenote2obsidian"];
+      const plugin = this.getPluginInstance();
       if (plugin?.coordinator && !this.activePage) {
         const page = await plugin.coordinator.resolveCanonicalPage(
           undefined,
@@ -580,14 +566,7 @@ export class OneNoteItemView extends ItemView {
     }
 
     try {
-      const plugins = typeof this.app !== "undefined" ? (this.app as any)?.plugins : undefined;
-      const plugin =
-        plugins?.getPlugin?.("onenote-spatial") ||
-        plugins?.plugins?.["onenote-spatial"] ||
-        plugins?.getPlugin?.("on2od") ||
-        plugins?.plugins?.["on2od"] ||
-        plugins?.getPlugin?.("onenote2obsidian") ||
-        plugins?.plugins?.["onenote2obsidian"];
+      const plugin = this.getPluginInstance();
       if (plugin?.coordinator) {
         const page = await plugin.coordinator.resolveCanonicalPage(pageId);
         if (page) {
@@ -597,6 +576,20 @@ export class OneNoteItemView extends ItemView {
     } catch {
       // ignore
     }
+  }
+
+  private getPluginInstance(): any {
+    const plugins = typeof this.app !== "undefined" ? (this.app as any)?.plugins : undefined;
+    return (
+      plugins?.getPlugin?.("on-to-od") ||
+      plugins?.plugins?.["on-to-od"] ||
+      plugins?.getPlugin?.("onenote-spatial") ||
+      plugins?.plugins?.["onenote-spatial"] ||
+      plugins?.getPlugin?.("on2od") ||
+      plugins?.plugins?.["on2od"] ||
+      plugins?.getPlugin?.("onenote2obsidian") ||
+      plugins?.plugins?.["onenote2obsidian"]
+    );
   }
 
   private compilePageScene(page: CanonicalPage): PageScene {
@@ -639,7 +632,6 @@ export class OneNoteItemView extends ItemView {
 
     const btnRow = this.emptyStateEl.createDiv({
       cls: "onenote-empty-actions",
-      attr: { style: "display: flex; gap: 8px; justify-content: center; margin-top: 12px;" },
     });
 
     const newBtn = btnRow.createEl("button", {
@@ -647,11 +639,7 @@ export class OneNoteItemView extends ItemView {
       text: "➕ New Canvas",
     });
     newBtn.addEventListener("click", async () => {
-      const plugins = (this.app as any).plugins;
-      const plugin =
-        plugins?.getPlugin("onenote-spatial") ||
-        plugins?.getPlugin("on2od") ||
-        plugins?.getPlugin("onenote2obsidian");
+      const plugin = this.getPluginInstance();
       if (plugin && typeof plugin.createNewCanvas === "function") {
         await plugin.createNewCanvas();
       }
@@ -662,11 +650,7 @@ export class OneNoteItemView extends ItemView {
       text: "📥 Import File",
     });
     importBtn.addEventListener("click", () => {
-      const plugins = (this.app as any).plugins;
-      const plugin =
-        plugins?.getPlugin("onenote-spatial") ||
-        plugins?.getPlugin("on2od") ||
-        plugins?.getPlugin("onenote2obsidian");
+      const plugin = this.getPluginInstance();
       if (plugin && typeof plugin.openImportModal === "function") {
         plugin.openImportModal();
       }

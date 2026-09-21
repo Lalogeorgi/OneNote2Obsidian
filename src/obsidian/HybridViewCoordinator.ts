@@ -69,7 +69,8 @@ export class HybridViewCoordinator {
     // 2. Check explicit sidecar hint
     if (sidecarHint) {
       const decodedHint = decodeURIComponent(sidecarHint);
-      let file = vault.getAbstractFileByPath(decodedHint);
+      const cleanHint = decodedHint.replace(/^[./\\]+/, "");
+      let file = vault.getAbstractFileByPath(cleanHint);
       if (file instanceof TFile) {
         const loaded = await loadFromSidecarFile(file);
         if (loaded) return loaded;
@@ -79,7 +80,8 @@ export class HybridViewCoordinator {
       if (sourceHint) {
         const sourceFile = vault.getAbstractFileByPath(sourceHint);
         if (sourceFile?.parent) {
-          const relPath = `${sourceFile.parent.path}/${decodedHint}`;
+          const parentDir = sourceFile.parent.path === "/" ? "" : `${sourceFile.parent.path}/`;
+          const relPath = `${parentDir}${cleanHint}`;
           file = vault.getAbstractFileByPath(relPath);
           if (file instanceof TFile) {
             const loaded = await loadFromSidecarFile(file);
@@ -91,7 +93,8 @@ export class HybridViewCoordinator {
       // Try relative to active file parent
       const activeFile = this.app.workspace.getActiveFile();
       if (activeFile?.parent) {
-        const relPath = `${activeFile.parent.path}/${decodedHint}`;
+        const parentDir = activeFile.parent.path === "/" ? "" : `${activeFile.parent.path}/`;
+        const relPath = `${parentDir}${cleanHint}`;
         file = vault.getAbstractFileByPath(relPath);
         if (file instanceof TFile) {
           const loaded = await loadFromSidecarFile(file);
@@ -99,14 +102,19 @@ export class HybridViewCoordinator {
         }
       }
 
-      // Fast in-memory check by exact filename match without disk reading
-      if (!decodedHint.includes("/")) {
-        const files = vault.getFiles();
-        const matchingFile = files.find((f) => f.name === decodedHint);
-        if (matchingFile instanceof TFile) {
-          const loaded = await loadFromSidecarFile(matchingFile);
-          if (loaded) return loaded;
-        }
+      // Fast in-memory check across all vault files by filename or suffix
+      const files = vault.getFiles();
+      const matchingFile = files.find(
+        (f) =>
+          f.name === cleanHint ||
+          f.path === cleanHint ||
+          f.path.endsWith(`/${cleanHint}`) ||
+          (cleanHint.endsWith(".onecanvas.json") &&
+            f.name.toLowerCase() === cleanHint.toLowerCase())
+      );
+      if (matchingFile instanceof TFile) {
+        const loaded = await loadFromSidecarFile(matchingFile);
+        if (loaded) return loaded;
       }
     }
 
@@ -118,8 +126,11 @@ export class HybridViewCoordinator {
           const content = await vault.read(sourceFile);
           const foundPageId = this.contextManager.parseFrontmatterForPageId(content);
           if (!pageId || foundPageId === pageId) {
-            const parentPath = sourceFile.parent?.path ? `${sourceFile.parent.path}/` : "";
-            const expectedSidecar = `${parentPath}${sourceFile.basename}.onecanvas.json`;
+            const parentDir =
+              sourceFile.parent?.path && sourceFile.parent.path !== "/"
+                ? `${sourceFile.parent.path}/`
+                : "";
+            const expectedSidecar = `${parentDir}${sourceFile.basename}.onecanvas.json`;
             const sidecarFile = vault.getAbstractFileByPath(expectedSidecar);
             if (sidecarFile instanceof TFile) {
               const loaded = await loadFromSidecarFile(sidecarFile);
@@ -139,8 +150,11 @@ export class HybridViewCoordinator {
         const content = await vault.read(activeFile);
         const foundPageId = this.contextManager.parseFrontmatterForPageId(content);
         if (!pageId || foundPageId === pageId) {
-          const parentPath = activeFile.parent?.path ? `${activeFile.parent.path}/` : "";
-          const expectedSidecar = `${parentPath}${activeFile.basename}.onecanvas.json`;
+          const parentDir =
+            activeFile.parent?.path && activeFile.parent.path !== "/"
+              ? `${activeFile.parent.path}/`
+              : "";
+          const expectedSidecar = `${parentDir}${activeFile.basename}.onecanvas.json`;
           const sidecarFile = vault.getAbstractFileByPath(expectedSidecar);
           if (sidecarFile instanceof TFile) {
             const loaded = await loadFromSidecarFile(sidecarFile);
@@ -168,7 +182,9 @@ export class HybridViewCoordinator {
       }
     }
 
-    for (const sc of sidecars) {
+    // Read at most 10 candidates to prevent UI freezing
+    for (let i = 0; i < Math.min(sidecars.length, 10); i++) {
+      const sc = sidecars[i]!;
       try {
         const json = await vault.read(sc);
         if (json.includes(pageId)) {

@@ -13,36 +13,40 @@ export function emptyElement(el: Element): void {
  * Sets raw SVG markup into an element using DOMParser and importNode,
  * avoiding unsafe assignments to innerHTML.
  */
-export function setSvgContent(el: HTMLElement, svgString: string): void {
+export function setSvgContent(el: HTMLElement, svgOrText: string): void {
   emptyElement(el);
-  if (!svgString) return;
+  if (!svgOrText) return;
+  const trimmed = svgOrText.trim();
+  if (!trimmed.startsWith("<svg") && !trimmed.startsWith("<SVG")) {
+    el.textContent = trimmed;
+    return;
+  }
   try {
     const parser = new DOMParser();
-    // Use HTML parser first: natively parses SVG tags without strict xmlns declaration
-    const parsedHtml = parser.parseFromString(svgString, "text/html");
-    const svgEl = parsedHtml.body.querySelector("svg");
-    if (svgEl) {
-      const doc = el.ownerDocument || document;
-      const imported = doc.importNode(svgEl, true);
+    const normalizedSvg = trimmed.includes("xmlns")
+      ? trimmed
+      : trimmed.replace(/<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
+    const parsedXml = parser.parseFromString(normalizedSvg, "image/svg+xml");
+    const xmlEl = parsedXml.documentElement;
+    if (xmlEl && xmlEl.tagName.toLowerCase() === "svg" && !xmlEl.querySelector("parsererror")) {
+      const doc = el.ownerDocument || (typeof document !== "undefined" ? document : null);
+      const imported = doc ? doc.importNode(xmlEl, true) : xmlEl;
       el.appendChild(imported);
       return;
     }
 
-    // Fallback: XML parser with xmlns injection if needed
-    const normalizedSvg = svgString.includes("xmlns")
-      ? svgString
-      : svgString.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"');
-    const parsedXml = parser.parseFromString(normalizedSvg, "image/svg+xml");
-    const xmlEl = parsedXml.documentElement;
-    if (xmlEl && xmlEl.tagName.toLowerCase() === "svg") {
-      const doc = el.ownerDocument || document;
-      const imported = doc.importNode(xmlEl, true);
+    const parsedHtml = parser.parseFromString(trimmed, "text/html");
+    const svgEl = parsedHtml.body.querySelector("svg");
+    if (svgEl) {
+      const doc = el.ownerDocument || (typeof document !== "undefined" ? document : null);
+      const imported = doc ? doc.importNode(svgEl, true) : svgEl;
       el.appendChild(imported);
+      return;
     }
   } catch {
     // Fallback if parsing fails
-    el.textContent = "";
   }
+  el.textContent = "";
 }
 
 /**

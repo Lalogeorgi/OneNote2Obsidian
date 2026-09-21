@@ -1,4 +1,4 @@
-import { App, Modal, Notice } from "obsidian";
+import { App, Modal, Notice, TFile } from "obsidian";
 import {
   STICKY_NOTE_COLOR_PRESETS,
   STICKY_NOTE_STRINGS,
@@ -71,40 +71,42 @@ export class StickyNotesHubModal extends Modal {
     if (this.app?.vault && typeof this.app.vault.getFiles === "function") {
       try {
         const files = this.app.vault.getFiles();
+        const pendingSidecars: TFile[] = [];
         for (const f of files) {
           if (f.name.endsWith(".onecanvas.json")) {
-            const parentPath = f.parent?.path ? `${f.parent.path}/` : "";
+            const parentPath = f.parent?.path && f.parent.path !== "/" ? `${f.parent.path}/` : "";
             const mdPath = `${parentPath}${f.name.replace(".onecanvas.json", ".md")}`;
-            if (PageContextManager.getInstance().getPageContextByMarkdownPath(mdPath)) {
-              continue;
+            if (!PageContextManager.getInstance().getPageContextByMarkdownPath(mdPath)) {
+              pendingSidecars.push(f);
             }
-            this.app.vault
-              .read(f)
-              .then((content) => {
-                try {
-                  const scene = PageSceneSerializer.deserialize(content);
-                  if (scene && scene.nodes) {
-                    let added = false;
-                    for (const n of scene.nodes) {
-                      if (n.layer === "stickyNotes" && (n as any).element) {
-                        const stickyEl = (n as any).element as CanonicalStickyNote;
-                        if (!notesMap.has(stickyEl.id)) {
-                          notesMap.set(stickyEl.id, stickyEl);
-                          added = true;
-                        }
-                      }
-                    }
-                    if (added) {
-                      this.allNotes = Array.from(notesMap.values());
-                      this.renderNotes();
+          }
+        }
+
+        if (pendingSidecars.length > 0) {
+          // Read pending sidecars in parallel and trigger a single debounced render
+          const readPromises = pendingSidecars.slice(0, 25).map(async (f) => {
+            try {
+              const content = await this.app.vault.read(f);
+              const scene = PageSceneSerializer.deserialize(content);
+              if (scene && scene.nodes) {
+                for (const n of scene.nodes) {
+                  if (n.layer === "stickyNotes" && (n as any).element) {
+                    const stickyEl = (n as any).element as CanonicalStickyNote;
+                    if (!notesMap.has(stickyEl.id)) {
+                      notesMap.set(stickyEl.id, stickyEl);
                     }
                   }
-                } catch {
-                  // Ignore parse error
                 }
-              })
-              .catch(() => {});
-          }
+              }
+            } catch {
+              // Ignore parse error
+            }
+          });
+
+          Promise.allSettled(readPromises).then(() => {
+            this.allNotes = Array.from(notesMap.values());
+            this.renderNotes();
+          });
         }
       } catch {
         // Safe containment

@@ -41,6 +41,7 @@ export class OneNoteParserAdapter implements IOneNoteParserAdapter {
       "Parsing revision store and object spaces...",
       30
     );
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     const storeParser = new MsOneStoreParser(buffer);
     storeParser.parse();
@@ -51,10 +52,12 @@ export class OneNoteParserAdapter implements IOneNoteParserAdapter {
       "Reconstructing canonical document model...",
       70
     );
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     const builder = new MsOneDocumentBuilder();
     const pages = builder.buildPages(storeParser);
     const assets = builder.getExtractedAssets();
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     progress?.report(ProgressStage.COMPLETE, "Section parsed successfully.", 100);
 
@@ -84,12 +87,14 @@ export class OneNoteParserAdapter implements IOneNoteParserAdapter {
     }
 
     progress?.report(ProgressStage.PARSING_OBJECT_SPACES, "Parsing notebook hierarchy...", 50);
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     const storeParser = new MsOneStoreParser(buffer);
     storeParser.parse();
 
     const builder = new MsOneDocumentBuilder();
     const notebook = builder.buildNotebook(storeParser, "Notebook");
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     progress?.report(ProgressStage.COMPLETE, "Table of Contents parsed successfully.", 100);
     return notebook;

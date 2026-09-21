@@ -137,12 +137,18 @@ export class OneNoteStickyNoteView extends ItemView {
     const leafContainer = (this.leaf as any)?.containerEl;
     if (leafContainer) {
       const viewHeader = leafContainer.querySelector(".view-header") as HTMLElement | null;
-      if (viewHeader) viewHeader.classList.add("is-hidden");
+      if (viewHeader) {
+        viewHeader.classList.add("onenote-header-hidden");
+        viewHeader.classList.add("is-hidden");
+      }
       const tabsParent = leafContainer.closest(".workspace-tabs");
       const tabHeader = tabsParent?.querySelector(
         ".workspace-tab-header-container"
       ) as HTMLElement | null;
-      if (tabHeader) tabHeader.classList.add("is-hidden");
+      if (tabHeader) {
+        tabHeader.classList.add("onenote-header-hidden");
+        tabHeader.classList.add("is-hidden");
+      }
     }
 
     // Also strip Obsidian's titlebar and window control buttons ONLY in a popout window document, NEVER in the main Obsidian window
@@ -156,12 +162,23 @@ export class OneNoteStickyNoteView extends ItemView {
         doc.body?.classList?.contains("mod-popout") ||
         doc !== document);
     if (isPopoutDoc) {
-      const titlebars = doc.querySelectorAll(".titlebar, .titlebar-button-container");
-      titlebars.forEach((tb) => (tb as HTMLElement).classList.add("is-hidden"));
+      doc.body?.classList?.add("onenote-popout-window");
+      const chromeHeaders = doc.querySelectorAll(
+        ".titlebar, .titlebar-button-container, .view-header, .workspace-tab-header-container"
+      );
+      chromeHeaders.forEach((tb) => {
+        (tb as HTMLElement).classList.add("onenote-header-hidden");
+        (tb as HTMLElement).classList.add("is-hidden");
+      });
       if (childWin && typeof childWin.requestAnimationFrame === "function") {
         childWin.requestAnimationFrame(() => {
-          const lateTitlebars = doc.querySelectorAll(".titlebar, .titlebar-button-container");
-          lateTitlebars.forEach((tb) => (tb as HTMLElement).classList.add("is-hidden"));
+          const lateChrome = doc.querySelectorAll(
+            ".titlebar, .titlebar-button-container, .view-header, .workspace-tab-header-container"
+          );
+          lateChrome.forEach((tb) => {
+            (tb as HTMLElement).classList.add("onenote-header-hidden");
+            (tb as HTMLElement).classList.add("is-hidden");
+          });
         });
       }
     }

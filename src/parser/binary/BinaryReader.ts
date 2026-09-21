@@ -44,6 +44,10 @@ export class BinaryReader {
     return this.length - this.offset;
   }
 
+  public get rawBytes(): Uint8Array {
+    return this.bytes;
+  }
+
   public get totalLength(): number {
     return this.length;
   }

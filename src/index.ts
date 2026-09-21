@@ -251,17 +251,17 @@ export default class OneNotePlugin extends Plugin {
       },
     });
 
-    // 7. Register Protocol Handler: obsidian://onenote-spatial
+    // 7. Register Protocol Handlers: obsidian://on-to-od and obsidian://onenote-spatial
     if (typeof (this as any).registerObsidianProtocolHandler === "function") {
-      (this as any).registerObsidianProtocolHandler(
-        "onenote-spatial",
-        (params: Record<string, string>) => {
-          this.coordinator.handleUri(params);
-        }
-      );
+      const uriHandler = (params: Record<string, string>) => {
+        this.coordinator.handleUri(params);
+      };
+      (this as any).registerObsidianProtocolHandler("on-to-od", uriHandler);
+      (this as any).registerObsidianProtocolHandler("onenote-spatial", uriHandler);
+      (this as any).registerObsidianProtocolHandler("on2od", uriHandler);
     }
 
-    // 8. Intercept in-app DOM clicks on obsidian://onenote-spatial links
+    // 8. Intercept in-app DOM clicks on spatial links
     this.registerDomEvent(document, "click", (evt: MouseEvent) => {
       const target = evt.target as HTMLElement | null;
       const anchor = target?.closest("a") as HTMLAnchorElement | null;
@@ -269,13 +269,20 @@ export default class OneNotePlugin extends Plugin {
 
       const href = anchor.getAttribute("href") || anchor.href || "";
       if (
+        href.startsWith("obsidian://on-to-od") ||
+        href.startsWith("on-to-od://") ||
+        href.includes("on-to-od?page=") ||
         href.startsWith("obsidian://onenote-spatial") ||
         href.startsWith("onenote-spatial://") ||
-        href.includes("onenote-spatial?page=")
+        href.includes("onenote-spatial?page=") ||
+        href.startsWith("obsidian://on2od") ||
+        href.startsWith("on2od://") ||
+        href.includes("on2od?page=")
       ) {
         evt.preventDefault();
         evt.stopPropagation();
-        this.handleSpatialUri(href);
+        const activeFile = this.app.workspace.getActiveFile();
+        this.handleSpatialUri(href, activeFile ? activeFile.path : undefined);
       }
     });
 
@@ -292,7 +299,9 @@ export default class OneNotePlugin extends Plugin {
       callouts.forEach((callout) => {
         if (callout.querySelector(".onenote-callout-spatial-btn")) return;
 
-        const link = callout.querySelector<HTMLAnchorElement>('a[href*="onenote-spatial"]');
+        const link = callout.querySelector<HTMLAnchorElement>(
+          'a[href*="on-to-od"], a[href*="onenote-spatial"], a[href*="on2od"]'
+        );
         const href = link?.getAttribute("href") || "";
 
         const btn = document.createElement("button");
@@ -602,6 +611,10 @@ export default class OneNotePlugin extends Plugin {
             message: `Writing vault file: ${parts[parts.length - 1]}`,
             percent: Math.min(99, pct),
           });
+
+          if (written % 5 === 0) {
+            await new Promise((r) => setTimeout(r, 0));
+          }
         }
 
         // 4. Register in PageContextManager

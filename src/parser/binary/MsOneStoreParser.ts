@@ -699,85 +699,120 @@ export class MsOneStoreParser {
 
     let objectIdCounter = 1;
     let currentY = 100;
-    const bufLen = this.reader.totalLength;
+    const raw = this.reader.rawBytes;
+    const bufLen = raw.length;
     let pos = 512;
+    const maxObjects = 200;
 
-    while (pos < bufLen - 8) {
-      this.reader.position = pos;
+    const asciiDecoder = new TextDecoder("windows-1252");
 
+    while (pos < bufLen - 8 && objectIdCounter <= maxObjects) {
       // 1. Check for PNG signature: 89 50 4E 47 0D 0A 1A 0A
-      if (this.reader.peekBytes(1)[0] === 0x89) {
-        const slice = this.reader.slice(pos, 8).readBytes(8);
-        if (slice[0] === 0x89 && slice[1] === 0x50 && slice[2] === 0x4e && slice[3] === 0x47) {
-          const blobOffset = pos;
-          const imageBytes = this.reader
-            .slice(pos, Math.min(2000000, bufLen - pos))
-            .readBytes(Math.min(2000000, bufLen - pos));
-          this.blobs.set(blobOffset, imageBytes);
+      if (
+        raw[pos] === 0x89 &&
+        raw[pos + 1] === 0x50 &&
+        raw[pos + 2] === 0x4e &&
+        raw[pos + 3] === 0x47 &&
+        raw[pos + 4] === 0x0d &&
+        raw[pos + 5] === 0x0a &&
+        raw[pos + 6] === 0x1a &&
+        raw[pos + 7] === 0x0a
+      ) {
+        const blobOffset = pos;
+        const imgLen = Math.min(2_000_000, bufLen - pos);
+        const imageBytes = raw.subarray(pos, pos + imgLen);
+        this.blobs.set(blobOffset, imageBytes);
 
-          const imgProps = new Map<number, PropertyValue>();
-          imgProps.set(0x00010009, { propertyId: 0x00010009, type: 4, data: 100 });
-          imgProps.set(0x0001000a, { propertyId: 0x0001000a, type: 4, data: currentY });
-          imgProps.set(0x00010004, { propertyId: 0x00010004, type: 4, data: 400 });
-          imgProps.set(0x00010005, { propertyId: 0x00010005, type: 4, data: 300 });
-          imgProps.set(0x0001000e, { propertyId: 0x0001000e, type: 4, data: blobOffset });
+        const imgProps = new Map<number, PropertyValue>();
+        imgProps.set(0x00010009, { propertyId: 0x00010009, type: 4, data: 100 });
+        imgProps.set(0x0001000a, { propertyId: 0x0001000a, type: 4, data: currentY });
+        imgProps.set(0x00010004, { propertyId: 0x00010004, type: 4, data: 400 });
+        imgProps.set(0x00010005, { propertyId: 0x00010005, type: 4, data: 300 });
+        imgProps.set(0x0001000e, { propertyId: 0x0001000e, type: 4, data: blobOffset });
 
-          space.objects.set(objectIdCounter, {
-            jcid: 0x00060012,
-            compactId: objectIdCounter++,
-            properties: imgProps,
-            children: [],
-          });
+        space.objects.set(objectIdCounter, {
+          jcid: 0x00060012,
+          compactId: objectIdCounter++,
+          properties: imgProps,
+          children: [],
+        });
 
-          currentY += 340;
-          pos += 1024;
-          continue;
+        currentY += 340;
+        pos += 1024;
+        continue;
+      }
+
+      // 2. Check for JPEG signature: FF D8 FF
+      if (raw[pos] === 0xff && raw[pos + 1] === 0xd8 && raw[pos + 2] === 0xff) {
+        const blobOffset = pos;
+        const imgLen = Math.min(2_000_000, bufLen - pos);
+        const imageBytes = raw.subarray(pos, pos + imgLen);
+        this.blobs.set(blobOffset, imageBytes);
+
+        const imgProps = new Map<number, PropertyValue>();
+        imgProps.set(0x00010009, { propertyId: 0x00010009, type: 4, data: 100 });
+        imgProps.set(0x0001000a, { propertyId: 0x0001000a, type: 4, data: currentY });
+        imgProps.set(0x00010004, { propertyId: 0x00010004, type: 4, data: 400 });
+        imgProps.set(0x00010005, { propertyId: 0x00010005, type: 4, data: 300 });
+        imgProps.set(0x0001000e, { propertyId: 0x0001000e, type: 4, data: blobOffset });
+
+        space.objects.set(objectIdCounter, {
+          jcid: 0x00060012,
+          compactId: objectIdCounter++,
+          properties: imgProps,
+          children: [],
+        });
+
+        currentY += 340;
+        pos += 1024;
+        continue;
+      }
+
+      // 3. Check for printable ASCII text sequences directly in raw view without allocations
+      const b0 = raw[pos]!;
+      if ((b0 >= 32 && b0 <= 126) || b0 === 10 || b0 === 13) {
+        let strLen = 1;
+        const maxProbe = Math.min(300, bufLen - pos);
+        while (strLen < maxProbe) {
+          const byte = raw[pos + strLen]!;
+          if ((byte >= 32 && byte <= 126) || byte === 10 || byte === 13) {
+            strLen++;
+          } else {
+            break;
+          }
+        }
+
+        if (strLen >= 12) {
+          const textStr = asciiDecoder.decode(raw.subarray(pos, pos + strLen)).trim();
+          if (
+            textStr &&
+            textStr.length >= 12 &&
+            !textStr.startsWith("{") &&
+            !textStr.includes("GUID") &&
+            !/^[0-9a-fA-F\-]{16,}$/.test(textStr)
+          ) {
+            const textProps = new Map<number, PropertyValue>();
+            textProps.set(0x00010001, { propertyId: 0x00010001, type: 7, data: textStr });
+            textProps.set(0x00010009, { propertyId: 0x00010009, type: 4, data: 100 });
+            textProps.set(0x0001000a, { propertyId: 0x0001000a, type: 4, data: currentY });
+            textProps.set(0x0001000b, { propertyId: 0x0001000b, type: 4, data: 500 });
+            textProps.set(0x0001000c, { propertyId: 0x0001000c, type: 4, data: 60 });
+
+            space.objects.set(objectIdCounter, {
+              jcid: 0x0006000d,
+              compactId: objectIdCounter++,
+              properties: textProps,
+              children: [],
+            });
+
+            currentY += 80;
+            pos += strLen;
+            continue;
+          }
         }
       }
 
-      // 2. Check for printable ASCII text sequences (require at least 8 readable chars)
-      const probeLen = Math.min(300, bufLen - pos);
-      const probeBytes = this.reader.slice(pos, probeLen).readBytes(probeLen);
-      let strLen = 0;
-      for (let i = 0; i < probeBytes.length; i++) {
-        const byte = probeBytes[i]!;
-        if ((byte >= 32 && byte <= 126) || byte === 10 || byte === 13) {
-          strLen++;
-        } else {
-          break;
-        }
-      }
-
-      if (strLen >= 8) {
-        const textStr = this.reader.slice(pos, strLen).readAsciiString(strLen).trim();
-        if (
-          textStr &&
-          textStr.length >= 8 &&
-          !textStr.startsWith("{") &&
-          !textStr.includes("GUID") &&
-          !/^[0-9a-fA-F\-]{16,}$/.test(textStr)
-        ) {
-          const textProps = new Map<number, PropertyValue>();
-          textProps.set(0x00010001, { propertyId: 0x00010001, type: 7, data: textStr });
-          textProps.set(0x00010009, { propertyId: 0x00010009, type: 4, data: 100 });
-          textProps.set(0x0001000a, { propertyId: 0x0001000a, type: 4, data: currentY });
-          textProps.set(0x0001000b, { propertyId: 0x0001000b, type: 4, data: 500 });
-          textProps.set(0x0001000c, { propertyId: 0x0001000c, type: 4, data: 60 });
-
-          space.objects.set(objectIdCounter, {
-            jcid: 0x0006000d,
-            compactId: objectIdCounter++,
-            properties: textProps,
-            children: [],
-          });
-
-          currentY += 80;
-          pos += strLen;
-          continue;
-        }
-      }
-
-      pos += 2;
+      pos += 4;
     }
 
     if (space.objects.size > 0) {

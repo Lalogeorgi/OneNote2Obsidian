@@ -4617,3 +4617,31 @@ body.mod-popout:has(.onenote-sticky-popout-leaf-container) .titlebar-inner {
   gap: 4px;
   margin-top: 6px;
 }
+
+/* Clean Popout Quick Note Window: suppress Obsidian view-header, tab-header, and titlebar */
+body.onenote-popout-window .titlebar,
+body.onenote-popout-window .titlebar-button-container,
+body.onenote-popout-window .view-header,
+body.onenote-popout-window .workspace-tab-header-container,
+.workspace-leaf:has([data-type="onenote-sticky-note-view"]) .view-header,
+.workspace-leaf-content[data-type="onenote-sticky-note-view"] .view-header,
+.onenote-header-hidden {
+  display: none !important;
+}
+
+/* Sticky Note and Format Toolbar Vector Icons */
+.onenote-sticky-action-btn svg,
+.onenote-sticky-format-btn svg,
+.onenote-brand-icon svg,
+.onenote-menu-icon svg {
+  display: block;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.onenote-empty-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 12px;
+}

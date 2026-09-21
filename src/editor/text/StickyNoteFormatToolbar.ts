@@ -195,6 +195,17 @@ export class StickyNoteFormatToolbar {
       } else {
         btn.textContent = tool.title;
       }
+      if (btn.childNodes.length === 0) {
+        if (tool.id === "bullet") {
+          btn.textContent = "•";
+        } else if (tool.id === "checklist") {
+          btn.textContent = "☑";
+        } else if (tool.id === "image") {
+          btn.textContent = "📷";
+        } else {
+          btn.textContent = tool.title;
+        }
+      }
       btn.title = tool.title;
       btn.setAttribute("data-command", tool.id);
       btn.setAttribute("aria-label", tool.title);
@@ -212,14 +223,18 @@ export class StickyNoteFormatToolbar {
       btn.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (tool.kind === "checklist") {
-          this.insertChecklistItem();
-        } else if (tool.kind === "image") {
-          this.triggerImageUpload();
-        } else if (tool.command) {
-          this.exec(tool.command);
+        try {
+          if (tool.kind === "checklist") {
+            this.insertChecklistItem();
+          } else if (tool.kind === "image") {
+            this.triggerImageUpload();
+          } else if (tool.command) {
+            this.exec(tool.command);
+          }
+          this.updateActiveStates();
+        } catch {
+          // ignore
         }
-        this.updateActiveStates();
       });
 
       this.btnMap.set(tool.id, btn);
@@ -234,115 +249,127 @@ export class StickyNoteFormatToolbar {
 
   private exec(command: string, value: string | undefined = undefined): void {
     if (!this.activeBodyEl) return;
-    const doc = this.doc;
-    if (!doc?.execCommand) return;
+    try {
+      const doc = this.doc;
+      if (!doc?.execCommand) return;
 
-    const prevHtml = this.activeBodyEl.innerHTML;
+      const prevHtml = this.activeBodyEl.innerHTML;
 
-    const isAlreadyFocused =
-      doc.activeElement === this.activeBodyEl ||
-      (this.activeBodyEl.contains(doc.activeElement) && doc.activeElement !== this.el);
+      const isAlreadyFocused =
+        doc.activeElement === this.activeBodyEl ||
+        (this.activeBodyEl.contains(doc.activeElement) && doc.activeElement !== this.el);
 
-    if (!isAlreadyFocused) {
-      this.restoreSelection();
-      this.activeBodyEl.focus({ preventScroll: true });
-    }
+      if (!isAlreadyFocused) {
+        this.restoreSelection();
+        this.activeBodyEl.focus({ preventScroll: true });
+      }
 
-    doc.execCommand(command, false, value);
-    this.saveSelection();
+      doc.execCommand(command, false, value);
+      this.saveSelection();
 
-    // Only notify mutation if the content was actually altered (e.g. selected text formatted)
-    if (this.activeBodyEl.innerHTML !== prevHtml) {
-      this.options.onMutate?.();
+      // Only notify mutation if the content was actually altered (e.g. selected text formatted)
+      if (this.activeBodyEl.innerHTML !== prevHtml) {
+        this.options.onMutate?.();
+      }
+    } catch {
+      // Safe fallback
     }
   }
 
   private insertChecklistItem(): void {
     if (!this.activeBodyEl) return;
-    const doc = this.doc;
-    const win = this.win;
+    try {
+      const doc = this.doc;
+      const win = this.win;
 
-    const isAlreadyFocused =
-      doc.activeElement === this.activeBodyEl ||
-      (this.activeBodyEl.contains(doc.activeElement) && doc.activeElement !== this.el);
+      const isAlreadyFocused =
+        doc.activeElement === this.activeBodyEl ||
+        (this.activeBodyEl.contains(doc.activeElement) && doc.activeElement !== this.el);
 
-    if (!isAlreadyFocused) {
-      this.restoreSelection();
-      this.activeBodyEl.focus({ preventScroll: true });
-    }
+      if (!isAlreadyFocused) {
+        this.restoreSelection();
+        this.activeBodyEl.focus({ preventScroll: true });
+      }
 
-    const selection = win.getSelection ? win.getSelection() : null;
-    const isSelectionInside = !!(
-      selection &&
-      selection.rangeCount > 0 &&
-      this.activeBodyEl.contains(selection.getRangeAt(0).commonAncestorContainer)
-    );
+      const selection = win.getSelection ? win.getSelection() : null;
+      const isSelectionInside = !!(
+        selection &&
+        selection.rangeCount > 0 &&
+        this.activeBodyEl.contains(selection.getRangeAt(0).commonAncestorContainer)
+      );
 
-    if (!selection || selection.rangeCount === 0 || !isSelectionInside) {
+      if (!selection || selection.rangeCount === 0 || !isSelectionInside) {
+        const item = this.createChecklistElement("<br>");
+        this.activeBodyEl.appendChild(item);
+        this.focusTextSpan(item);
+        this.options.onMutate?.();
+        return;
+      }
+
+      const range = selection.getRangeAt(0);
+
+      // 1. If caret or selection is already inside a checklist item -> TOGGLE OFF
+      const currentCheckItem = this.findClosestChecklistItem(range.startContainer);
+      if (currentCheckItem && this.activeBodyEl.contains(currentCheckItem)) {
+        this.toggleOffChecklistItem(currentCheckItem);
+        return;
+      }
+
+      // 2. If inside a paragraph / block element -> convert the entire block to a checklist item
+      const enclosingBlock = this.findEnclosingBlock(range.startContainer);
+      if (
+        enclosingBlock &&
+        enclosingBlock !== this.activeBodyEl &&
+        this.activeBodyEl.contains(enclosingBlock)
+      ) {
+        const content = enclosingBlock.innerHTML.trim();
+        const item = this.createChecklistElement(content || "<br>");
+        enclosingBlock.replaceWith(item);
+        this.focusTextSpan(item);
+        this.options.onMutate?.();
+        return;
+      }
+
+      // 3. If there is a non-collapsed text selection -> convert selected content
+      if (!range.collapsed) {
+        const frag = range.extractContents();
+        const tempDiv = doc.createElement("div");
+        tempDiv.appendChild(frag);
+        const content = tempDiv.innerHTML.trim();
+        const item = this.createChecklistElement(content || "<br>");
+        range.insertNode(item);
+        this.focusTextSpan(item);
+        this.options.onMutate?.();
+        return;
+      }
+
+      // 4. Collapsed caret inside text node of activeBodyEl
+      const node = range.startContainer;
+      if (node.nodeType === Node.TEXT_NODE && node.parentElement === this.activeBodyEl) {
+        const text = node.textContent || "";
+        const item = this.createChecklistElement(text.trim() || "<br>");
+        if (node.parentElement) {
+          node.parentElement.replaceChild(item, node);
+        } else {
+          (node as any).replaceWith?.(item);
+        }
+        this.focusTextSpan(item);
+        this.options.onMutate?.();
+        return;
+      }
+
+      // 5. Default insertion at current range
+      const item = this.createChecklistElement("<br>");
+      range.insertNode(item);
+      this.focusTextSpan(item);
+      this.options.onMutate?.();
+    } catch {
+      // Safe fallback if selection fails
       const item = this.createChecklistElement("<br>");
       this.activeBodyEl.appendChild(item);
       this.focusTextSpan(item);
       this.options.onMutate?.();
-      return;
     }
-
-    const range = selection.getRangeAt(0);
-
-    // 1. If caret or selection is already inside a checklist item -> TOGGLE OFF
-    const currentCheckItem = this.findClosestChecklistItem(range.startContainer);
-    if (currentCheckItem && this.activeBodyEl.contains(currentCheckItem)) {
-      this.toggleOffChecklistItem(currentCheckItem);
-      return;
-    }
-
-    // 2. If inside a paragraph / block element -> convert the entire block to a checklist item
-    const enclosingBlock = this.findEnclosingBlock(range.startContainer);
-    if (
-      enclosingBlock &&
-      enclosingBlock !== this.activeBodyEl &&
-      this.activeBodyEl.contains(enclosingBlock)
-    ) {
-      const content = enclosingBlock.innerHTML.trim();
-      const item = this.createChecklistElement(content || "<br>");
-      enclosingBlock.replaceWith(item);
-      this.focusTextSpan(item);
-      this.options.onMutate?.();
-      return;
-    }
-
-    // 3. If there is a non-collapsed text selection -> convert selected content
-    if (!range.collapsed) {
-      const frag = range.extractContents();
-      const tempDiv = doc.createElement("div");
-      tempDiv.appendChild(frag);
-      const content = tempDiv.innerHTML.trim();
-      const item = this.createChecklistElement(content || "<br>");
-      range.insertNode(item);
-      this.focusTextSpan(item);
-      this.options.onMutate?.();
-      return;
-    }
-
-    // 4. Collapsed caret inside text node of activeBodyEl
-    const node = range.startContainer;
-    if (node.nodeType === Node.TEXT_NODE && node.parentElement === this.activeBodyEl) {
-      const text = node.textContent || "";
-      const item = this.createChecklistElement(text.trim() || "<br>");
-      if (node.parentElement) {
-        node.parentElement.replaceChild(item, node);
-      } else {
-        (node as any).replaceWith?.(item);
-      }
-      this.focusTextSpan(item);
-      this.options.onMutate?.();
-      return;
-    }
-
-    // 5. Default insertion at current range
-    const item = this.createChecklistElement("<br>");
-    range.insertNode(item);
-    this.focusTextSpan(item);
-    this.options.onMutate?.();
   }
 
   private createChecklistElement(initialHtml: string): HTMLElement {
