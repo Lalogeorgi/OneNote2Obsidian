@@ -104,15 +104,27 @@ export class SceneBuilder {
       return a.id.localeCompare(b.id);
     });
 
-    const contentWidth = Math.max(100, maxX - minX);
-    const contentHeight = Math.max(100, maxY - minY);
-    const contentBounds = new Rectangle(minX, minY, contentWidth, contentHeight);
+    // In authentic Microsoft OneNote, the page canvas always begins anchored at origin (0, 0)
+    const canvasMinX = 0;
+    const canvasMinY = 0;
+    const canvasWidth = Math.max(1200, maxX);
+    const canvasHeight = Math.max(800, maxY);
+    const canvasBounds = new Rectangle(canvasMinX, canvasMinY, canvasWidth, canvasHeight);
+
+    const contentWidth = Math.max(100, maxX - Math.min(0, minX));
+    const contentHeight = Math.max(100, maxY - Math.min(0, minY));
+    const contentBounds = new Rectangle(
+      Math.min(0, minX),
+      Math.min(0, minY),
+      contentWidth,
+      contentHeight
+    );
 
     return {
       pageId: page.id,
       title: page.title,
       createdTime: page.createdTime,
-      canvasBounds: contentBounds,
+      canvasBounds,
       contentBounds,
       canvasStyle: page.canvasStyle,
       nodes,

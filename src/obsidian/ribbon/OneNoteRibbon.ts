@@ -33,6 +33,7 @@ export type RibbonTab = RibbonTabId;
 
 export interface OneNoteRibbonOptions {
   container: HTMLElement;
+  insertTarget?: HTMLElement;
   renderer: PixiRenderer | null;
   app?: App;
   defaultStickyNoteColor?: string;
@@ -48,8 +49,9 @@ export interface OneNoteRibbonOptions {
 
 export class OneNoteRibbon {
   public readonly el: HTMLElement;
-  private activeTab: RibbonTab = "draw";
-  private isCollapsed = false;
+
+  private activeTab: RibbonTab = "home";
+  private isCollapsed = true;
 
   private activeTool: InteractionTool = "select";
   private activePenType: PenType = "gel";
@@ -77,11 +79,13 @@ export class OneNoteRibbon {
 
   constructor(private options: OneNoteRibbonOptions) {
     this.el = document.createElement("div");
-    this.el.className = "onenote-ribbon-bar onenote-floating-toolbar";
+    this.el.className = "onenote-ribbon-bar is-collapsed";
     this.el.setAttribute("role", "toolbar");
     this.el.setAttribute("aria-label", RIBBON_UI_STRINGS.TOOLBAR_ARIA);
     this.buildRibbon();
-    if (options.container.firstChild) {
+    if (options.insertTarget && options.container.contains(options.insertTarget)) {
+      options.container.insertBefore(this.el, options.insertTarget);
+    } else if (options.container.firstChild) {
       options.container.insertBefore(this.el, options.container.firstChild);
     } else {
       options.container.appendChild(this.el);
@@ -220,24 +224,7 @@ export class OneNoteRibbon {
     const ribbonHeader = document.createElement("div");
     ribbonHeader.className = "onenote-ribbon-header";
 
-    // Zone 1: Left Controls (Brand Badge)
-    const leftControls = document.createElement("div");
-    leftControls.className = "onenote-ribbon-left-controls";
-    leftControls.setAttribute("role", "group");
-    leftControls.setAttribute("aria-label", RIBBON_UI_STRINGS.LEFT_CONTROLS_ARIA);
-
-    const brandBadge = document.createElement("div");
-    brandBadge.className = "onenote-ribbon-brand";
-    brandBadge.title = RIBBON_UI_STRINGS.CANVAS_ICON_TITLE;
-    brandBadge.setAttribute("aria-label", RIBBON_UI_STRINGS.CANVAS_ICON_ARIA);
-    const brandIcon = document.createElement("span");
-    brandIcon.className = "onenote-brand-icon";
-    setSvgContent(brandIcon, RIBBON_SVG_ICONS.CANVAS_BADGE);
-    brandBadge.appendChild(brandIcon);
-    leftControls.appendChild(brandBadge);
-    ribbonHeader.appendChild(leftControls);
-
-    // Zone 2: Center Ribbon Tabs Bar (Accessible tablist with Arrow keys navigation)
+    // Zone 1: Ribbon Tabs Bar (Starts at left edge with Home tab)
     const tabsContainer = document.createElement("div");
     tabsContainer.className = "onenote-ribbon-tabs";
     tabsContainer.setAttribute("role", "tablist");
@@ -316,10 +303,7 @@ export class OneNoteRibbon {
     fitBtn.className = "onenote-btn-icon onenote-fit-btn";
     fitBtn.title = "Fit to Content";
     fitBtn.setAttribute("aria-label", "Fit all content to view");
-    setSvgContent(
-      fitBtn,
-      `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>`
-    );
+    setSvgContent(fitBtn, RIBBON_SVG_ICONS.FIT_VIEW);
     fitBtn.onclick = () => {
       if (this.options.renderer) {
         this.options.renderer.fitToPage({ padding: 48, align: "top-left" });
@@ -347,8 +331,8 @@ export class OneNoteRibbon {
     collapseBtn.className = "onenote-btn-icon onenote-collapse-btn";
     collapseBtn.title = RIBBON_UI_STRINGS.COLLAPSE_TITLE;
     collapseBtn.setAttribute("aria-label", RIBBON_UI_STRINGS.COLLAPSE_ARIA);
-    collapseBtn.setAttribute("aria-expanded", "true");
-    setSvgContent(collapseBtn, RIBBON_SVG_ICONS.CHEVRON_UP);
+    collapseBtn.setAttribute("aria-expanded", "false");
+    setSvgContent(collapseBtn, RIBBON_SVG_ICONS.CHEVRON_DOWN);
     collapseBtn.onclick = () => this.toggleCollapse(collapseBtn);
     this.collapseBtnEl = collapseBtn;
     rightControls.appendChild(collapseBtn);
@@ -432,17 +416,29 @@ export class OneNoteRibbon {
     const selectBtn = this.createToolButton(
       toolsGroup,
       "select",
-      "↖",
+      RIBBON_SVG_ICONS.SELECT,
       "Type / Select",
       "Select & Type (Pointer)"
     );
     selectBtn.classList.add("is-active");
     this.toolButtons.set("select", selectBtn);
 
-    const lassoBtn = this.createToolButton(toolsGroup, "lasso", "➰", "Lasso", "Lasso Select");
+    const lassoBtn = this.createToolButton(
+      toolsGroup,
+      "lasso",
+      RIBBON_SVG_ICONS.LASSO,
+      "Lasso",
+      "Lasso Select"
+    );
     this.toolButtons.set("lasso", lassoBtn);
 
-    const panBtn = this.createToolButton(toolsGroup, "pan", "✋", "Pan", "Pan Canvas");
+    const panBtn = this.createToolButton(
+      toolsGroup,
+      "pan",
+      RIBBON_SVG_ICONS.PAN,
+      "Pan",
+      "Pan Canvas"
+    );
     this.toolButtons.set("pan", panBtn);
 
     this.createDivider(panel);
@@ -605,9 +601,11 @@ export class OneNoteRibbon {
     eraserFlyoutBtn.type = "button";
     eraserFlyoutBtn.className = "onenote-ribbon-btn";
     const eraserIcon = document.createElement("span");
+    eraserIcon.className = "onenote-btn-icon-symbol";
     eraserIcon.setAttribute("aria-hidden", "true");
-    eraserIcon.textContent = "🧹";
+    setSvgContent(eraserIcon, RIBBON_SVG_ICONS.ERASER);
     const eraserText = document.createElement("span");
+    eraserText.className = "onenote-btn-label";
     eraserText.textContent = "Eraser ▼";
     eraserFlyoutBtn.appendChild(eraserIcon);
     eraserFlyoutBtn.appendChild(eraserText);
@@ -657,9 +655,11 @@ export class OneNoteRibbon {
     shapesFlyoutBtn.type = "button";
     shapesFlyoutBtn.className = "onenote-ribbon-btn";
     const shapesIcon = document.createElement("span");
+    shapesIcon.className = "onenote-btn-icon-symbol";
     shapesIcon.setAttribute("aria-hidden", "true");
-    shapesIcon.textContent = "🔷";
+    setSvgContent(shapesIcon, RIBBON_SVG_ICONS.SHAPES);
     const shapesText = document.createElement("span");
+    shapesText.className = "onenote-btn-label";
     shapesText.textContent = "Shapes ▼";
     shapesFlyoutBtn.appendChild(shapesIcon);
     shapesFlyoutBtn.appendChild(shapesText);
@@ -739,9 +739,11 @@ export class OneNoteRibbon {
     inkToShapeBtn.type = "button";
     inkToShapeBtn.className = `onenote-ribbon-btn onenote-toggle-btn ${this.isInkToShape ? "is-active" : ""}`;
     const inkIcon = document.createElement("span");
+    inkIcon.className = "onenote-btn-icon-symbol";
     inkIcon.setAttribute("aria-hidden", "true");
-    inkIcon.textContent = "🪄";
+    setSvgContent(inkIcon, RIBBON_SVG_ICONS.INK_TO_SHAPE);
     const inkLabel = document.createElement("span");
+    inkLabel.className = "onenote-btn-label";
     inkLabel.textContent = "Ink to Shape";
     inkToShapeBtn.appendChild(inkIcon);
     inkToShapeBtn.appendChild(inkLabel);
@@ -764,9 +766,11 @@ export class OneNoteRibbon {
     rulerBtn.type = "button";
     rulerBtn.className = "onenote-ribbon-btn onenote-toggle-btn";
     const rulerIcon = document.createElement("span");
+    rulerIcon.className = "onenote-btn-icon-symbol";
     rulerIcon.setAttribute("aria-hidden", "true");
-    rulerIcon.textContent = "📏";
+    setSvgContent(rulerIcon, RIBBON_SVG_ICONS.RULER);
     const rulerLabel = document.createElement("span");
+    rulerLabel.className = "onenote-btn-label";
     rulerLabel.textContent = "Ruler";
     rulerBtn.appendChild(rulerIcon);
     rulerBtn.appendChild(rulerLabel);
@@ -784,39 +788,27 @@ export class OneNoteRibbon {
 
     // 7. Arrange (Z-Order)
     const arrangeGroup = this.createGroup(panel, "Arrange");
-    const frontBtn = document.createElement("button");
-    frontBtn.type = "button";
-    frontBtn.className = "onenote-ribbon-btn";
-    const frontIcon = document.createElement("span");
-    frontIcon.setAttribute("aria-hidden", "true");
-    frontIcon.textContent = "🔝";
-    const frontLabel = document.createElement("span");
-    frontLabel.textContent = "Bring to Front";
-    frontBtn.appendChild(frontIcon);
-    frontBtn.appendChild(frontLabel);
-    frontBtn.title = "Bring selected object to the very front (Ctrl+Shift+])";
-    frontBtn.setAttribute("aria-label", "Bring selected object to the very front");
-    frontBtn.onclick = () => {
-      this.options.renderer?.adjustZOrder?.("bringToFront");
-    };
-    arrangeGroup.appendChild(frontBtn);
+    this.createActionBtn(
+      arrangeGroup,
+      RIBBON_SVG_ICONS.BRING_FRONT,
+      "Bring Front",
+      () => {
+        this.options.renderer?.adjustZOrder?.("bringToFront");
+      },
+      "Bring selected object to the very front (Ctrl+Shift+])",
+      "Bring selected object to the very front"
+    );
 
-    const backBtn = document.createElement("button");
-    backBtn.type = "button";
-    backBtn.className = "onenote-ribbon-btn";
-    const backIcon = document.createElement("span");
-    backIcon.setAttribute("aria-hidden", "true");
-    backIcon.textContent = "🔙";
-    const backLabel = document.createElement("span");
-    backLabel.textContent = "Send to Back";
-    backBtn.appendChild(backIcon);
-    backBtn.appendChild(backLabel);
-    backBtn.title = "Send selected object to the very back (Ctrl+Shift+[)";
-    backBtn.setAttribute("aria-label", "Send selected object to the very back");
-    backBtn.onclick = () => {
-      this.options.renderer?.adjustZOrder?.("sendToBack");
-    };
-    arrangeGroup.appendChild(backBtn);
+    this.createActionBtn(
+      arrangeGroup,
+      RIBBON_SVG_ICONS.SEND_BACK,
+      "Send Back",
+      () => {
+        this.options.renderer?.adjustZOrder?.("sendToBack");
+      },
+      "Send selected object to the very back (Ctrl+Shift+[)",
+      "Send selected object to the very back"
+    );
 
     return panel;
   }
@@ -982,7 +974,7 @@ export class OneNoteRibbon {
     const clipGroup = this.createGroup(panel, "Clipboard");
     this.createActionBtn(
       clipGroup,
-      "📋",
+      RIBBON_SVG_ICONS.PASTE,
       "Paste",
       () => this.options.renderer?.paste(),
       "Paste (Ctrl+V)",
@@ -990,7 +982,7 @@ export class OneNoteRibbon {
     );
     this.createActionBtn(
       clipGroup,
-      "✂️",
+      RIBBON_SVG_ICONS.CUT,
       "Cut",
       () => this.options.renderer?.cutSelection(),
       "Cut (Ctrl+X)",
@@ -998,7 +990,7 @@ export class OneNoteRibbon {
     );
     this.createActionBtn(
       clipGroup,
-      "📄",
+      RIBBON_SVG_ICONS.COPY,
       "Copy",
       () => this.options.renderer?.copySelection(),
       "Copy (Ctrl+C)",
@@ -1033,7 +1025,7 @@ export class OneNoteRibbon {
     const noteGroup = this.createGroup(panel, "Containers");
     this.createActionBtn(
       noteGroup,
-      "📝",
+      RIBBON_SVG_ICONS.NOTE_BOX,
       "Note Box",
       () => this.options.renderer?.insertNoteContainer(),
       "Insert Note Box",
@@ -1046,7 +1038,7 @@ export class OneNoteRibbon {
     const canvasGroup = this.createGroup(panel, "Canvas");
     this.createActionBtn(
       canvasGroup,
-      "↶",
+      RIBBON_SVG_ICONS.UNDO,
       "Undo",
       () => this.options.renderer?.undo(),
       "Undo (Ctrl+Z)",
@@ -1054,7 +1046,7 @@ export class OneNoteRibbon {
     );
     this.createActionBtn(
       canvasGroup,
-      "↷",
+      RIBBON_SVG_ICONS.REDO,
       "Redo",
       () => this.options.renderer?.redo(),
       "Redo (Ctrl+Y)",
@@ -1062,7 +1054,7 @@ export class OneNoteRibbon {
     );
     this.createActionBtn(
       canvasGroup,
-      "⛶",
+      RIBBON_SVG_ICONS.FIT_VIEW,
       "Fit View",
       () => {
         if (this.options.renderer) {
@@ -1075,7 +1067,7 @@ export class OneNoteRibbon {
     );
     this.createActionBtn(
       canvasGroup,
-      "📋",
+      RIBBON_SVG_ICONS.PROPERTIES,
       "Properties",
       () => this.options.onPagePropertiesClick?.(),
       "Page Properties & Metadata",
@@ -1100,7 +1092,11 @@ export class OneNoteRibbon {
     const iconSpan = document.createElement("span");
     iconSpan.className = "onenote-btn-icon-symbol";
     iconSpan.setAttribute("aria-hidden", "true");
-    iconSpan.textContent = icon;
+    if (icon.startsWith("<svg")) {
+      setSvgContent(iconSpan, icon);
+    } else {
+      iconSpan.textContent = icon;
+    }
     btn.appendChild(iconSpan);
     btn.addEventListener("mousedown", (e) => {
       e.preventDefault(); // Keep focus within the active text container
@@ -1145,7 +1141,7 @@ export class OneNoteRibbon {
     const tableGroup = this.createGroup(panel, "Tables");
     this.createActionBtn(
       tableGroup,
-      "📊",
+      RIBBON_SVG_ICONS.TABLE,
       "2x2 Table",
       () => this.options.renderer?.insertTable(2, 2),
       "Insert 2x2 Table",
@@ -1153,7 +1149,7 @@ export class OneNoteRibbon {
     );
     this.createActionBtn(
       tableGroup,
-      "📊",
+      RIBBON_SVG_ICONS.TABLE,
       "3x3 Table",
       () => this.options.renderer?.insertTable(3, 3),
       "Insert 3x3 Table",
@@ -1212,7 +1208,7 @@ export class OneNoteRibbon {
 
     this.createActionBtn(
       imgGroup,
-      "🖼️",
+      RIBBON_SVG_ICONS.IMAGE,
       "Picture",
       () => imgInput.click(),
       "Insert Picture from File",
@@ -1225,7 +1221,7 @@ export class OneNoteRibbon {
     const mediaGroup = this.createGroup(panel, "Links & Stamps");
     this.createActionBtn(
       mediaGroup,
-      "🔗",
+      RIBBON_SVG_ICONS.LINK,
       "Link",
       () => {
         if (this.options.onInsertLink) {
@@ -1242,7 +1238,7 @@ export class OneNoteRibbon {
     );
     this.createActionBtn(
       mediaGroup,
-      "📅",
+      RIBBON_SVG_ICONS.DATE,
       "Date",
       () => {
         const now = new Date();
@@ -1253,7 +1249,7 @@ export class OneNoteRibbon {
     );
     this.createActionBtn(
       mediaGroup,
-      "🕒",
+      RIBBON_SVG_ICONS.TIME,
       "Time",
       () => {
         const now = new Date();
@@ -1339,7 +1335,7 @@ export class OneNoteRibbon {
 
     this.createActionBtn(
       tintGroup,
-      "🔄",
+      RIBBON_SVG_ICONS.PALETTE,
       "Reset",
       () => this.options.renderer?.setPageBackgroundColor("#ffffff"),
       "Reset Page Tint to White",
@@ -1352,7 +1348,7 @@ export class OneNoteRibbon {
     const zoomGroup = this.createGroup(panel, "Zoom");
     this.createActionBtn(
       zoomGroup,
-      "➕",
+      RIBBON_SVG_ICONS.ZOOM_IN,
       "Zoom In",
       () => {
         if (this.options.renderer) {
@@ -1372,7 +1368,7 @@ export class OneNoteRibbon {
     );
     this.createActionBtn(
       zoomGroup,
-      "➖",
+      RIBBON_SVG_ICONS.ZOOM_OUT,
       "Zoom Out",
       () => {
         if (this.options.renderer) {
@@ -1392,7 +1388,7 @@ export class OneNoteRibbon {
     );
     this.createActionBtn(
       zoomGroup,
-      "1:1",
+      RIBBON_SVG_ICONS.ZOOM_RESET,
       "100%",
       () => {
         if (this.options.renderer) {
@@ -1405,7 +1401,7 @@ export class OneNoteRibbon {
     );
     this.createActionBtn(
       zoomGroup,
-      "⛶",
+      RIBBON_SVG_ICONS.FIT_VIEW,
       "Fit Page",
       () => {
         if (this.options.renderer) {
@@ -1418,7 +1414,7 @@ export class OneNoteRibbon {
     );
     this.createActionBtn(
       zoomGroup,
-      "🎯",
+      RIBBON_SVG_ICONS.SELECTION,
       "Selection",
       () => {
         if (this.options.renderer) {
@@ -1435,7 +1431,7 @@ export class OneNoteRibbon {
     const infoGroup = this.createGroup(panel, "Page Info");
     this.createActionBtn(
       infoGroup,
-      "📋",
+      RIBBON_SVG_ICONS.PROPERTIES,
       "Properties",
       () => this.options.onPagePropertiesClick?.(),
       "Page Properties & Metadata",
@@ -1486,7 +1482,11 @@ export class OneNoteRibbon {
     const iconSpan = document.createElement("span");
     iconSpan.className = "onenote-btn-icon-symbol";
     iconSpan.setAttribute("aria-hidden", "true");
-    iconSpan.textContent = icon;
+    if (icon.startsWith("<svg")) {
+      setSvgContent(iconSpan, icon);
+    } else {
+      iconSpan.textContent = icon;
+    }
     const labelSpan = document.createElement("span");
     labelSpan.className = "onenote-btn-label";
     labelSpan.textContent = label;
@@ -1513,7 +1513,11 @@ export class OneNoteRibbon {
     const iconSpan = document.createElement("span");
     iconSpan.className = "onenote-btn-icon-symbol";
     iconSpan.setAttribute("aria-hidden", "true");
-    iconSpan.textContent = icon;
+    if (icon.startsWith("<svg")) {
+      setSvgContent(iconSpan, icon);
+    } else {
+      iconSpan.textContent = icon;
+    }
     const labelSpan = document.createElement("span");
     labelSpan.className = "onenote-btn-label";
     labelSpan.textContent = label;

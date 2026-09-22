@@ -2,12 +2,11 @@ import { ItemView, Notice, TFile, ViewStateResult, WorkspaceLeaf } from "obsidia
 import { Point, Point2D } from "../geometry/Point";
 import { CanonicalNotebook } from "../model/CanonicalNotebook";
 import { CanonicalPage } from "../model/CanonicalPage";
-import { IdGenerator, PageId } from "../model/Ids";
-import { StickyNoteColorPreset } from "../model/CanonicalStickyNote";
+import { PageId } from "../model/Ids";
 import { StickyNoteUtils } from "../model/StickyNoteUtils";
 import { PageScene } from "../pagescene/PageScene";
 import { SceneBuilder } from "../pagescene/SceneBuilder";
-import { InteractionTool } from "../renderer/interaction/SpatialInteractionController";
+import { CanvasScrollbars } from "../renderer/interaction/CanvasScrollbars";
 import { PixiRenderer } from "../renderer/pixi/PixiRenderer";
 import { PageContextManager } from "../context/PageContextManager";
 import { FloatingStickyNoteManager } from "./FloatingStickyNoteManager";
@@ -20,9 +19,9 @@ export const VIEW_TYPE_ONENOTE_SPATIAL = "onenote-spatial-view";
 
 export class OneNoteItemView extends ItemView {
   public ribbon: OneNoteRibbon | null = null;
+  public scrollbars: CanvasScrollbars | null = null;
   private renderer: PixiRenderer | null = null;
   private canvasHostEl: HTMLElement | null = null;
-  private toolbarEl: HTMLElement | null = null;
   private hudEl: HTMLElement | null = null;
   private emptyStateEl: HTMLElement | null = null;
   private loadingOverlayEl: HTMLElement | null = null;
@@ -75,6 +74,7 @@ export class OneNoteItemView extends ItemView {
   }
 
   public async onOpen(): Promise<void> {
+    this.containerEl.addClass("onenote-spatial-leaf");
     const container = this.contentEl;
     container.empty();
     container.addClass("onenote-spatial-view-root");
@@ -91,6 +91,12 @@ export class OneNoteItemView extends ItemView {
       preference: "webgl",
       enableDomOverlay: true,
       devicePixelRatio: typeof window !== "undefined" ? window.devicePixelRatio : 1,
+    });
+
+    // 2b. Initialize Expandable Canvas Scrollbars
+    this.scrollbars = new CanvasScrollbars({
+      container: this.canvasHostEl,
+      renderer: this.renderer,
     });
 
     this.renderer.setAssetResolver((assetId: string) => {
@@ -111,6 +117,7 @@ export class OneNoteItemView extends ItemView {
       this.hasUserPannedOrZoomed = true;
       this.updateHud();
       this.ribbon?.updateZoomDisplay();
+      this.scrollbars?.update();
     };
 
     this.renderer.onCursorSceneMove = (scenePt) => {
@@ -345,18 +352,15 @@ export class OneNoteItemView extends ItemView {
     const defaultStickyColor = pluginInstance?.settings?.defaultStickyNoteColor || "yellow";
 
     this.ribbon = new OneNoteRibbon({
-      container,
+      container: this.containerEl,
+      insertTarget: this.contentEl,
       renderer: this.renderer,
       app: this.app,
       defaultStickyNoteColor: defaultStickyColor,
-      onToolChange: (tool) => {
-        this.activeTool = tool;
-      },
       onPagePropertiesClick: () => {
         this.openPagePropertiesModal();
       },
     });
-    this.toolbarEl = this.ribbon.el;
     this.createHud(container);
     this.createEmptyState(container);
     this.createLoadingOverlay(container);
@@ -369,10 +373,11 @@ export class OneNoteItemView extends ItemView {
           if (width > 0 && height > 0 && this.renderer) {
             this.renderer.resize(width, height);
             if (!this.hasUserPannedOrZoomed) {
-              this.renderer.fitToPage({ padding: 48, align: "top-left" });
+              this.renderer.fitToPage({ padding: 0, align: "top-left" });
             }
             this.updateHud();
             this.ribbon?.updateZoomDisplay();
+            this.scrollbars?.update();
           }
         }
       });
@@ -460,14 +465,19 @@ export class OneNoteItemView extends ItemView {
     if (width > 0 && height > 0) {
       this.renderer.resize(width, height);
       if (!this.hasUserPannedOrZoomed) {
-        this.renderer.fitToPage({ padding: 48, align: "top-left" });
+        this.renderer.fitToPage({ padding: 0, align: "top-left" });
       }
       this.updateHud();
       this.ribbon?.updateZoomDisplay();
+      this.scrollbars?.update();
     }
   }
 
   public async onClose(): Promise<void> {
+    if (this.scrollbars) {
+      this.scrollbars.destroy();
+      this.scrollbars = null;
+    }
     if (this.unsubscribePageContext) {
       this.unsubscribePageContext();
       this.unsubscribePageContext = null;
@@ -492,7 +502,7 @@ export class OneNoteItemView extends ItemView {
       this.ribbon.destroy();
       this.ribbon = null;
     }
-    this.toolbarEl = null;
+    this.containerEl.removeClass("onenote-spatial-leaf");
     this.hudEl = null;
     this.emptyStateEl = null;
     this.loadingOverlayEl = null;
@@ -517,10 +527,11 @@ export class OneNoteItemView extends ItemView {
       if (this.renderer) {
         this.renderer.renderScene(scene);
         this.hasUserPannedOrZoomed = false;
-        this.renderer.fitToPage({ padding: 48, align: "top-left" });
+        this.renderer.fitToPage({ padding: 0, align: "top-left" });
       }
       this.updateHud();
       this.ribbon?.updateZoomDisplay();
+      this.scrollbars?.update();
     } finally {
       this.showLoading(false);
     }
@@ -659,331 +670,6 @@ export class OneNoteItemView extends ItemView {
     if (this.activePage) {
       this.emptyStateEl.addClass("is-hidden");
     }
-  }
-
-  private activeInkColor: string = CANVAS_STYLE_DEFAULTS.DEFAULT_INK_COLOR;
-  private activeInkWidth: number = CANVAS_STYLE_DEFAULTS.DEFAULT_INK_WIDTH;
-  private activeTool: InteractionTool = "select";
-
-  public createFloatingToolbar(container: HTMLElement): void {
-    this.toolbarEl = container.createDiv({ cls: "onenote-floating-toolbar" });
-
-    // 1. History Group (Undo / Redo)
-    const historyGroup = this.toolbarEl.createDiv({ cls: "onenote-tool-group" });
-    const undoBtn = historyGroup.createEl("button", { cls: "onenote-btn-icon", text: "↶" });
-    undoBtn.title = "Undo (Ctrl+Z)";
-    undoBtn.addEventListener("click", () => this.renderer?.undo());
-
-    const redoBtn = historyGroup.createEl("button", { cls: "onenote-btn-icon", text: "↷" });
-    redoBtn.title = "Redo (Ctrl+Y)";
-    redoBtn.addEventListener("click", () => this.renderer?.redo());
-
-    this.toolbarEl.createDiv({ cls: "onenote-toolbar-divider" });
-
-    // 2. Selection & Navigation Group
-    const selectGroup = this.toolbarEl.createDiv({ cls: "onenote-tool-group" });
-    const tools: Array<{ id: InteractionTool; label: string; title: string }> = [
-      { id: "select", label: "↖ Select", title: "Select & Type (Pointer)" },
-      { id: "lasso", label: "➰ Lasso", title: "Lasso Selection" },
-      { id: "pan", label: "✋ Pan", title: "Pan Canvas" },
-    ];
-
-    const toolButtons = new Map<InteractionTool, HTMLElement>();
-
-    for (const t of tools) {
-      const btn = selectGroup.createEl("button", {
-        cls: `onenote-tool-btn ${this.activeTool === t.id ? "is-active" : ""}`,
-        text: t.label,
-      });
-      btn.title = t.title;
-      btn.addEventListener("click", () => {
-        this.setTool(t.id);
-        toolButtons.forEach((b) => b.removeClass("is-active"));
-        btn.addClass("is-active");
-      });
-      toolButtons.set(t.id, btn);
-    }
-
-    this.toolbarEl.createDiv({ cls: "onenote-toolbar-divider" });
-
-    // 3. Draw & Inking Group
-    const drawGroup = this.toolbarEl.createDiv({ cls: "onenote-tool-group" });
-    const penBtn = drawGroup.createEl("button", {
-      cls: `onenote-tool-btn ${this.activeTool === "pen" ? "is-active" : ""}`,
-      text: "✏️ Pen",
-    });
-    penBtn.title = "Draw with Pen";
-    penBtn.addEventListener("click", () => {
-      this.renderer?.setInkOptions({
-        mode: "pen",
-        color: this.activeInkColor,
-        strokeWidth: this.activeInkWidth,
-      });
-      this.setTool("pen");
-      toolButtons.forEach((b) => b.removeClass("is-active"));
-      penBtn.addClass("is-active");
-    });
-    toolButtons.set("pen", penBtn);
-
-    const highBtn = drawGroup.createEl("button", {
-      cls: `onenote-tool-btn ${this.activeTool === "highlighter" ? "is-active" : ""}`,
-      text: "🖍️ Highlighter",
-    });
-    highBtn.title = "Draw with Highlighter";
-    highBtn.addEventListener("click", () => {
-      this.renderer?.setInkOptions({
-        mode: "highlighter",
-        color: this.activeInkColor === "#000000" ? "#FEF08A" : this.activeInkColor,
-        strokeWidth: Math.max(12, this.activeInkWidth * 3),
-      });
-      this.setTool("highlighter");
-      toolButtons.forEach((b) => b.removeClass("is-active"));
-      highBtn.addClass("is-active");
-    });
-    toolButtons.set("highlighter", highBtn);
-
-    const eraserBtn = drawGroup.createEl("button", {
-      cls: `onenote-tool-btn ${this.activeTool === "eraser" ? "is-active" : ""}`,
-      text: "🧹 Eraser",
-    });
-    eraserBtn.title = "Stroke Eraser";
-    eraserBtn.addEventListener("click", () => {
-      this.setTool("eraser");
-      toolButtons.forEach((b) => b.removeClass("is-active"));
-      eraserBtn.addClass("is-active");
-    });
-    toolButtons.set("eraser", eraserBtn);
-
-    // Ink Color & Thickness Flyout
-    const paletteBtn = drawGroup.createEl("button", {
-      cls: "onenote-btn-palette",
-      title: "Pen Color & Thickness",
-    });
-    const swatchIndicator = paletteBtn.createDiv({ cls: "onenote-swatch-indicator" });
-    swatchIndicator.style.backgroundColor = this.activeInkColor;
-
-    const palettePopup = drawGroup.createDiv({ cls: "onenote-palette-popup is-hidden" });
-    const colors = [
-      "#000000",
-      "#1E40AF",
-      "#DC2626",
-      "#16A34A",
-      "#9333EA",
-      "#EC4899",
-      "#EA580C",
-      "#FACC15",
-    ];
-    const swatchRow = palettePopup.createDiv({ cls: "onenote-swatch-row" });
-    for (const c of colors) {
-      const sw = swatchRow.createDiv({ cls: "onenote-color-swatch" });
-      sw.style.backgroundColor = c;
-      sw.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this.activeInkColor = c;
-        swatchIndicator.style.backgroundColor = c;
-        this.renderer?.setInkOptions({ color: c });
-        palettePopup.addClass("is-hidden");
-      });
-    }
-
-    const widthRow = palettePopup.createDiv({ cls: "onenote-width-row" });
-    const widths = [
-      { w: 1.5, label: "Fine (1.5pt)" },
-      { w: 3.0, label: "Medium (3pt)" },
-      { w: 6.0, label: "Thick (6pt)" },
-      { w: 12.0, label: "Marker (12pt)" },
-    ];
-    for (const item of widths) {
-      const wb = widthRow.createEl("button", { cls: "onenote-width-btn", text: item.label });
-      wb.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this.activeInkWidth = item.w;
-        this.renderer?.setInkOptions({ strokeWidth: item.w });
-        palettePopup.addClass("is-hidden");
-      });
-    }
-
-    paletteBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      palettePopup.toggleClass("is-hidden", !palettePopup.hasClass("is-hidden"));
-    });
-
-    document.addEventListener("click", () => {
-      palettePopup.addClass("is-hidden");
-    });
-
-    this.toolbarEl.createDiv({ cls: "onenote-toolbar-divider" });
-
-    // 4. Insert Group
-    const insertGroup = this.toolbarEl.createDiv({ cls: "onenote-tool-group" });
-    const noteBtn = insertGroup.createEl("button", { cls: "onenote-btn", text: "📝 Note" });
-    noteBtn.title = "Insert Text Box / Note Container";
-    noteBtn.addEventListener("click", () => {
-      this.renderer?.insertNoteContainer();
-    });
-
-    const stickyBtn = insertGroup.createEl("button", { cls: "onenote-btn", text: "📌 Sticky" });
-    stickyBtn.title = "Insert Sticky Note (Click to insert, right-click for colors)";
-
-    const stickyPalettePopup = insertGroup.createDiv({
-      cls: "onenote-palette-popup is-hidden",
-    });
-    const stickySwatchRow = stickyPalettePopup.createDiv({ cls: "onenote-swatch-row" });
-    const stickyPresets: StickyNoteColorPreset[] = [
-      "yellow",
-      "green",
-      "pink",
-      "blue",
-      "purple",
-      "orange",
-      "teal",
-      "charcoal",
-      "gray",
-    ];
-    for (const preset of stickyPresets) {
-      const sw = stickySwatchRow.createDiv({ cls: "onenote-color-swatch" });
-      const pal = StickyNoteUtils.resolveStickyNoteColors(preset);
-      sw.style.backgroundColor = pal.background;
-      sw.title = preset.charAt(0).toUpperCase() + preset.slice(1);
-      sw.addEventListener("click", (e) => {
-        e.stopPropagation();
-        stickyPalettePopup.addClass("is-hidden");
-        const activeCtx = PageContextManager.getInstance().getActivePageContext();
-        const newNote = StickyNoteUtils.createDefaultStickyNote({ color: preset });
-        FloatingStickyNoteManager.getInstance().openPopoutWindow(
-          this.app,
-          newNote,
-          activeCtx?.pageId
-        );
-      });
-    }
-
-    stickyBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const activeCtx = PageContextManager.getInstance().getActivePageContext();
-      const newNote = StickyNoteUtils.createDefaultStickyNote({ color: "yellow" });
-      FloatingStickyNoteManager.getInstance().openPopoutWindow(
-        this.app,
-        newNote,
-        activeCtx?.pageId
-      );
-    });
-
-    stickyBtn.addEventListener("contextmenu", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      stickyPalettePopup.toggleClass("is-hidden", !stickyPalettePopup.hasClass("is-hidden"));
-    });
-
-    document.addEventListener("click", () => {
-      stickyPalettePopup.addClass("is-hidden");
-    });
-
-    const imgInput = insertGroup.createEl("input", {
-      type: "file",
-      cls: "onenote-hidden-file-input",
-    });
-    imgInput.accept = "image/*";
-    imgInput.addEventListener("change", async () => {
-      const file = imgInput.files?.[0];
-      if (file && this.renderer) {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const assetId = IdGenerator.assetId("img_" + Date.now());
-          this.renderer?.insertImage(assetId, file.type, 320, 240);
-        };
-        reader.readAsArrayBuffer(file);
-      }
-      imgInput.value = "";
-    });
-
-    const imgBtn = insertGroup.createEl("button", { cls: "onenote-btn", text: "🖼️ Picture" });
-    imgBtn.title = "Insert Picture from File";
-    imgBtn.addEventListener("click", () => imgInput.click());
-
-    const tableBtn = insertGroup.createEl("button", { cls: "onenote-btn", text: "📊 Table" });
-    tableBtn.title = "Insert 2x2 Table";
-    tableBtn.addEventListener("click", () => {
-      this.renderer?.insertTable(2, 2);
-    });
-
-    const timeBtn = insertGroup.createEl("button", { cls: "onenote-btn", text: "🕒 Date" });
-    timeBtn.title = "Insert Date & Time Stamp";
-    timeBtn.addEventListener("click", () => {
-      this.renderer?.insertTimestamp();
-    });
-
-    this.toolbarEl.createDiv({ cls: "onenote-toolbar-divider" });
-
-    // 5. Page View & Appearance Group
-    const viewGroup = this.toolbarEl.createDiv({ cls: "onenote-tool-group" });
-    const ruleBtn = viewGroup.createEl("button", { cls: "onenote-btn", text: "📏 Rules" });
-    ruleBtn.title = "Toggle Rule & Grid Lines";
-    let ruleStateIndex = 0;
-    const ruleStates: Array<"none" | "standard-ruled" | "small-grid"> = [
-      "none",
-      "standard-ruled",
-      "small-grid",
-    ];
-    ruleBtn.addEventListener("click", () => {
-      ruleStateIndex = (ruleStateIndex + 1) % ruleStates.length;
-      this.renderer?.setPageRuleLines(ruleStates[ruleStateIndex]!);
-    });
-
-    const pageColorBtn = viewGroup.createEl("button", { cls: "onenote-btn", text: "🎨 Tint" });
-    pageColorBtn.title = "Cycle Page Tint Color";
-    let colorIndex = 0;
-    const pageColors = ["#FFFFFF", "#FFFDF0", "#F0FFF4", "#FFF5F5", "#1E1E1E"];
-    pageColorBtn.addEventListener("click", () => {
-      colorIndex = (colorIndex + 1) % pageColors.length;
-      this.renderer?.setPageBackgroundColor(pageColors[colorIndex]!);
-    });
-
-    const fitBtn = viewGroup.createEl("button", { cls: "onenote-btn", text: "⛶ Fit" });
-    fitBtn.title = "Fit Content (Fit to Window)";
-    fitBtn.addEventListener("click", () => {
-      if (this.renderer) this.renderer.fitToPage({ padding: 48, align: "top-left" });
-    });
-
-    const resetBtn = viewGroup.createEl("button", { cls: "onenote-btn", text: "1:1" });
-    resetBtn.title = "Reset Zoom to 100%";
-    resetBtn.addEventListener("click", () => {
-      if (this.renderer) this.renderer.fitToPage({ padding: 48, align: "top-left" });
-    });
-
-    const linkModeBtn = viewGroup.createEl("button", { cls: "onenote-btn", text: "🔗 Links" });
-    linkModeBtn.title = "Cycle Spatial Backlinks Visibility (Hover -> Always -> Hidden)";
-    const linkModes: Array<import("../renderer/pixi/SpatialLinkRenderer").SpatialLinkCurveMode> = [
-      "hover",
-      "always",
-      "hidden",
-    ];
-    let linkModeIdx = 0;
-    linkModeBtn.addEventListener("click", () => {
-      linkModeIdx = (linkModeIdx + 1) % linkModes.length;
-      const mode = linkModes[linkModeIdx]!;
-      this.renderer?.setLinkCurveMode(mode);
-      linkModeBtn.setText(`🔗 Links: ${mode.charAt(0).toUpperCase() + mode.slice(1)}`);
-    });
-
-    const zoomInBtn = viewGroup.createEl("button", { cls: "onenote-btn-icon", text: "+" });
-    zoomInBtn.title = "Zoom In";
-    zoomInBtn.addEventListener("click", () => this.zoomBy(1.2));
-
-    const zoomOutBtn = viewGroup.createEl("button", { cls: "onenote-btn-icon", text: "−" });
-    zoomOutBtn.title = "Zoom Out";
-    zoomOutBtn.addEventListener("click", () => this.zoomBy(0.8));
-  }
-
-  private setTool(tool: InteractionTool): void {
-    if (this.renderer) {
-      this.renderer.setTool(tool);
-    }
-  }
-
-  private zoomBy(factor: number): void {
-    if (!this.canvasHostEl || !this.renderer) return;
-    this.renderer.zoomAt(new Point(48, 48), factor);
   }
 
   private createHud(container: HTMLElement): void {

@@ -8,6 +8,7 @@ import {
   PageSceneNode,
   SceneAnnotationNode,
   SceneGroupNode,
+  SceneImageNode,
   SceneStickyNoteNode,
 } from "./PageScene";
 import { SceneBuilder } from "./SceneBuilder";
@@ -288,6 +289,30 @@ export class PageSceneSerializer {
           style: n.style as any,
         };
         return annotNode;
+      }
+
+      if (n.layer === "images") {
+        const imageElement = (n.element as any) || {
+          type: "image",
+          id: n.id,
+          bounds,
+          assetId: n.assetId,
+          mimeType: n.mimeType || "image/png",
+        };
+        const imageNode: SceneImageNode = {
+          id: n.id as PageSceneNode["id"],
+          layer: "images",
+          bounds,
+          aabb,
+          zIndex: n.zIndex,
+          visible: n.visible !== false,
+          opacity: n.opacity,
+          rotation: n.rotation,
+          element: imageElement,
+          assetId: n.assetId as any,
+          mimeType: n.mimeType,
+        };
+        return imageNode;
       }
 
       const base = {

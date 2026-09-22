@@ -174,6 +174,28 @@ export class MsOneDocumentBuilder {
     const outlineDescendantIds = new Set<number>();
     const tableChildIds = new Set<number>();
     const titleChildIds = new Set<number>();
+    const parentObjectMap = new Map<number, ParsedObjectNode>();
+
+    for (const [, p] of allObjects) {
+      for (const c of p.children) {
+        parentObjectMap.set(c.compactId, p);
+      }
+      if (p.childOids) {
+        for (const oid of p.childOids) {
+          parentObjectMap.set(oid, p);
+          parentObjectMap.set(oid & 0xff, p);
+        }
+      }
+      const childProp = p.properties.get(0x1c20)?.data;
+      if (Array.isArray(childProp)) {
+        for (const cid of childProp) {
+          if (typeof cid === "number") {
+            parentObjectMap.set(cid, p);
+            parentObjectMap.set(cid & 0xff, p);
+          }
+        }
+      }
+    }
 
     const visitedOutlineGraphIds = new Set<number>();
     const collectDescendants = (node: ParsedObjectNode) => {
@@ -181,15 +203,29 @@ export class MsOneDocumentBuilder {
       visitedOutlineGraphIds.add(node.compactId);
 
       for (const c of node.children) {
-        outlineDescendantIds.add(c.compactId);
+        const cJcid = c.jcid & 0xffff;
+        if (
+          cJcid !== MS_ONE_JCID.IMAGE_NODE &&
+          cJcid !== MS_ONE_JCID.IMAGE_NODE_ALT &&
+          cJcid !== MS_ONE_JCID.INK_NODE
+        ) {
+          outlineDescendantIds.add(c.compactId);
+        }
         collectDescendants(c);
       }
       if (node.childOids) {
         for (const oid of node.childOids) {
-          outlineDescendantIds.add(oid);
           const target = allObjects.get(oid) || allObjects.get(oid & 0xff);
           if (target && target.compactId !== node.compactId) {
-            outlineDescendantIds.add(target.compactId);
+            const tJcid = target.jcid & 0xffff;
+            if (
+              tJcid !== MS_ONE_JCID.IMAGE_NODE &&
+              tJcid !== MS_ONE_JCID.IMAGE_NODE_ALT &&
+              tJcid !== MS_ONE_JCID.INK_NODE
+            ) {
+              outlineDescendantIds.add(oid);
+              outlineDescendantIds.add(target.compactId);
+            }
             collectDescendants(target);
           }
         }
@@ -198,10 +234,17 @@ export class MsOneDocumentBuilder {
       if (Array.isArray(childProp)) {
         for (const cid of childProp) {
           if (typeof cid === "number") {
-            outlineDescendantIds.add(cid);
             const target = allObjects.get(cid) || allObjects.get(cid & 0xff);
             if (target && target.compactId !== node.compactId) {
-              outlineDescendantIds.add(target.compactId);
+              const tJcid = target.jcid & 0xffff;
+              if (
+                tJcid !== MS_ONE_JCID.IMAGE_NODE &&
+                tJcid !== MS_ONE_JCID.IMAGE_NODE_ALT &&
+                tJcid !== MS_ONE_JCID.INK_NODE
+              ) {
+                outlineDescendantIds.add(cid);
+                outlineDescendantIds.add(target.compactId);
+              }
               collectDescendants(target);
             }
           }
@@ -357,7 +400,7 @@ export class MsOneDocumentBuilder {
 
           case MS_ONE_JCID.IMAGE_NODE:
           case MS_ONE_JCID.IMAGE_NODE_ALT: {
-            const image = this.convertImage(obj, blobs, zCounter++, parser);
+            const image = this.convertImage(obj, blobs, zCounter++, parser, parentObjectMap);
             if (image) {
               const dedupKey = (image as any).containerKey || image.assetId;
               if (!processedImageContainers.has(dedupKey)) {
@@ -369,7 +412,7 @@ export class MsOneDocumentBuilder {
           }
 
           case MS_ONE_JCID.INK_NODE: {
-            const ink = this.convertInk(obj, blobs, zCounter++, allObjects);
+            const ink = this.convertInk(obj, blobs, zCounter++, allObjects, parentObjectMap);
             if (ink) elements.push(ink);
             break;
           }
@@ -825,10 +868,13 @@ export class MsOneDocumentBuilder {
       (obj.properties.get(MS_ONE_PROP_ID.LAYOUT_WIDTH)?.data as number) ??
       (obj.properties.get(MS_ONE_PROP_ID.FIXTURE_WIDTH)?.data as number) ??
       PARSER_METRICS_DEFAULTS.DEFAULT_OUTLINE_WIDTH;
+    const hasExplicitHeight =
+      obj.properties.has(MS_ONE_PROP_ID.LAYOUT_HEIGHT) ||
+      obj.properties.has(MS_ONE_PROP_ID.FIXTURE_HEIGHT);
     const rawH =
       (obj.properties.get(MS_ONE_PROP_ID.LAYOUT_HEIGHT)?.data as number) ??
       (obj.properties.get(MS_ONE_PROP_ID.FIXTURE_HEIGHT)?.data as number) ??
-      PARSER_METRICS_DEFAULTS.DEFAULT_OUTLINE_HEIGHT;
+      0;
 
     const xPt = Math.max(0, Math.min(rawX, 50000));
     const yPt = Math.max(0, Math.min(rawY, 50000));
@@ -1138,14 +1184,19 @@ export class MsOneDocumentBuilder {
 
     if (paragraphs.length === 0) return null;
 
-    const estHeightPt = Math.max(heightPt, paragraphs.length * 18 + 12);
+    const estHeightPt =
+      hasExplicitHeight && heightPt > 0
+        ? Math.max(heightPt, paragraphs.length * 18 + 12)
+        : Math.max(PARSER_METRICS_DEFAULTS.MIN_OUTLINE_HEIGHT, paragraphs.length * 18 + 12);
 
-    return {
+    const outlineResult: any = {
       type: "outline",
       id: IdGenerator.objectId("outline"),
       bounds: CoordinateMath.normalizeBounds(xPt, yPt, widthPt, estHeightPt, zIndex),
       paragraphs,
     };
+    outlineResult.sourceId = obj.compactId;
+    return outlineResult as CanonicalOutline;
   }
 
   private calculateEstimatedContentWidth(outline: CanonicalOutline): number {
@@ -1171,29 +1222,39 @@ export class MsOneDocumentBuilder {
     for (const out of outlines) {
       const estW = this.calculateEstimatedContentWidth(out);
       contentWidthMap.set(out.id, estW);
-      const estH = Math.max(out.bounds.height, out.paragraphs.length * 24 + 16);
+      const actualTextH = Math.max(28, out.paragraphs.length * 22 + 10);
+      const estH =
+        out.bounds.height > actualTextH + 40
+          ? actualTextH
+          : Math.max(out.bounds.height, actualTextH);
       (out as { bounds: any }).bounds = {
         ...out.bounds,
-        height: Math.max(out.bounds.height, estH),
+        height: estH,
       };
     }
 
     // 2. Title Zone Deconfliction:
     // OneNote title block is positioned at left = 48px, top = 36px.
     const titleText = (pageTitle || "").trim();
-    const titleWidth = Math.max(240, Math.min(600, titleText.length * 14 + 48));
-    const titleBottom = 100;
-    const marginX = 48;
+    const hasAuthenticTitle = Boolean(
+      titleText && titleText !== "Untitled Page" && !this.isDateOrTimeString(titleText)
+    );
 
-    for (const out of outlines) {
-      const collidesWithTitle =
-        out.bounds.x < marginX + titleWidth &&
-        out.bounds.x + out.bounds.width > marginX &&
-        out.bounds.y < titleBottom &&
-        out.bounds.y + out.bounds.height > 36;
+    if (hasAuthenticTitle) {
+      const titleWidth = Math.max(240, Math.min(600, titleText.length * 14 + 48));
+      const titleBottom = 86;
+      const marginX = 48;
 
-      if (collidesWithTitle) {
-        (out as { bounds: any }).bounds = { ...out.bounds, y: titleBottom + 10 };
+      for (const out of outlines) {
+        const collidesWithTitle =
+          out.bounds.x < marginX + titleWidth &&
+          out.bounds.x + out.bounds.width > marginX &&
+          out.bounds.y < titleBottom &&
+          out.bounds.y + out.bounds.height > 36;
+
+        if (collidesWithTitle) {
+          (out as { bounds: any }).bounds = { ...out.bounds, y: titleBottom + 6 };
+        }
       }
     }
 
@@ -1274,6 +1335,114 @@ export class MsOneDocumentBuilder {
       // 4. Ensure inflated solitary outlines don't take up excessive width
       if (a.bounds.width > 500 && aEstWidth < 400) {
         (a as { bounds: any }).bounds = { ...a.bounds, width: Math.max(aEstWidth, 320) };
+      }
+    }
+
+    // 5. Image Deconfliction:
+    // Ensure images clear the title banner, outlines, and other images
+    const images = elements.filter((e): e is CanonicalImage => e.type === "image");
+
+    // Title Zone Clearance: only apply if authentic title exists
+    if (hasAuthenticTitle) {
+      const titleWidth = Math.max(200, Math.min(500, titleText.length * 12 + 40));
+      const titleBottom = 76;
+      const marginX = 48;
+
+      for (const img of images) {
+        const collidesWithTitle =
+          img.bounds.x < marginX + titleWidth &&
+          img.bounds.x + img.bounds.width > marginX &&
+          img.bounds.y < titleBottom &&
+          img.bounds.y + img.bounds.height > 36;
+        if (collidesWithTitle) {
+          (img as { bounds: any }).bounds = { ...img.bounds, y: titleBottom + 6 };
+        }
+      }
+    }
+
+    // Check collision with outlines: respect side-by-side placements and parent outline relationship
+    for (const img of images) {
+      for (const out of outlines) {
+        const isParentOutline =
+          Boolean((img as any).parentOutlineId) &&
+          (img as any).parentOutlineId === (out as any).sourceId;
+
+        // If this image belongs to this outline container, its placement was already resolved
+        // with precision relative to its outline during conversion. Never collide child with parent!
+        if (isParentOutline) {
+          continue;
+        }
+
+        const outEstWidth = contentWidthMap.get(out.id) || out.bounds.width;
+        const outEffectiveWidth = Math.min(out.bounds.width, Math.max(outEstWidth, 160));
+        const actualTextHeight = Math.max(20, out.paragraphs.length * 16 + 4);
+
+        // First check vertical overlap with the outline's actual text band
+        const vOverlap =
+          Math.max(img.bounds.y, out.bounds.y) <
+          Math.min(img.bounds.y + img.bounds.height, out.bounds.y + actualTextHeight);
+
+        if (!vOverlap) {
+          // Outlines and images on different vertical bands do not collide
+          continue;
+        }
+
+        // Within the same vertical band: check horizontal relationship
+        const isSideBySide = img.bounds.x >= out.bounds.x + outEffectiveWidth;
+
+        if (isSideBySide) {
+          // Clean side-by-side placement: shrink outline width if it exceeds image start
+          if (out.bounds.x + out.bounds.width > img.bounds.x) {
+            (out as { bounds: any }).bounds = {
+              ...out.bounds,
+              width: Math.max(
+                outEffectiveWidth,
+                Math.min(out.bounds.width, Math.max(120, img.bounds.x - out.bounds.x - 16))
+              ),
+            };
+          }
+        } else {
+          // If image has authentic explicit OneNote coordinates, do not shove it downward below outlines.
+          // In OneNote, users intentionally overlay text over images (captions, callouts) and ink over images.
+          // Pushing explicitly positioned images down breaks intentional layouts and detaches ink annotations.
+          if ((img as any).hasExplicitCoords) {
+            continue;
+          }
+
+          // Horizontal collision within the same vertical band: image overlaps outline text -> shift image below text
+          const hOverlap =
+            Math.max(img.bounds.x, out.bounds.x) <
+            Math.min(img.bounds.x + img.bounds.width, out.bounds.x + outEffectiveWidth);
+
+          if (hOverlap) {
+            (img as { bounds: any }).bounds = {
+              ...img.bounds,
+              y: Math.max(img.bounds.y, out.bounds.y + actualTextHeight + 6),
+            };
+          }
+        }
+      }
+    }
+
+    // Anti-collision between multiple images: only deconflict if sharing identical fallback coordinates
+    images.sort((a, b) => {
+      if (Math.abs(a.bounds.y - b.bounds.y) > 10) return a.bounds.y - b.bounds.y;
+      return a.bounds.x - b.bounds.x;
+    });
+    for (let i = 0; i < images.length; i++) {
+      const a = images[i]!;
+      for (let j = i + 1; j < images.length; j++) {
+        const b = images[j]!;
+        // Only adjust if both images share nearly identical starting coordinates (e.g. fallback defaults)
+        const isIdenticalPosition =
+          Math.abs(a.bounds.x - b.bounds.x) < 12 && Math.abs(a.bounds.y - b.bounds.y) < 12;
+
+        if (isIdenticalPosition) {
+          (b as { bounds: any }).bounds = {
+            ...b.bounds,
+            y: a.bounds.y + a.bounds.height + 16,
+          };
+        }
       }
     }
   }
@@ -1414,35 +1583,179 @@ export class MsOneDocumentBuilder {
     };
   }
 
+  private sniffImageDimensions(data: Uint8Array): { width: number; height: number } | null {
+    if (!data || data.length < 10) return null;
+    // PNG: 89 50 4E 47 0D 0A 1A 0A
+    if (
+      data[0] === 0x89 &&
+      data[1] === 0x50 &&
+      data[2] === 0x4e &&
+      data[3] === 0x47 &&
+      data.length >= 24
+    ) {
+      const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+      const w = view.getUint32(16, false);
+      const h = view.getUint32(20, false);
+      if (w > 0 && h > 0) return { width: w, height: h };
+    }
+    // GIF: "GIF87a" or "GIF89a"
+    if (data[0] === 0x47 && data[1] === 0x49 && data[2] === 0x46 && data.length >= 10) {
+      const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+      const w = view.getUint16(6, true);
+      const h = view.getUint16(8, true);
+      if (w > 0 && h > 0) return { width: w, height: h };
+    }
+    // JPEG: FF D8 FF
+    if (data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) {
+      let offset = 2;
+      const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+      while (offset < data.length - 8) {
+        if (data[offset] !== 0xff) {
+          offset++;
+          continue;
+        }
+        const marker = data[offset + 1];
+        if (marker === 0xc0 || marker === 0xc1 || marker === 0xc2 || marker === 0xc3) {
+          const h = view.getUint16(offset + 5, false);
+          const w = view.getUint16(offset + 7, false);
+          if (w > 0 && h > 0) return { width: w, height: h };
+        }
+        const len = view.getUint16(offset + 2, false);
+        offset += 2 + len;
+      }
+    }
+    return null;
+  }
+
   private convertImage(
     obj: ParsedObjectNode,
     blobs: Map<number, Uint8Array>,
     zIndex: number,
-    parser?: MsOneStoreParser
+    parser?: MsOneStoreParser,
+    parentObjectMap?: Map<number, ParsedObjectNode>
   ): CanonicalImage | null {
-    const rawX =
+    // Check local offsets on the image node itself
+    const localOffX =
+      (obj.properties.get(MS_ONE_PROP_ID.OFFSET_FROM_CONTAINER_HORIZ)?.data as number) ??
+      (obj.properties.get(MS_ONE_PROP_ID.INK_ORIGIN_X)?.data as number) ??
+      0;
+    const localOffY =
+      (obj.properties.get(MS_ONE_PROP_ID.OFFSET_FROM_CONTAINER_VERT)?.data as number) ??
+      (obj.properties.get(MS_ONE_PROP_ID.INK_ORIGIN_Y)?.data as number) ??
+      0;
+
+    let accumulatedOffX = localOffX;
+    let accumulatedOffY = localOffY;
+    let outlineAncestor: ParsedObjectNode | null = null;
+    let intermediateElement: ParsedObjectNode | null = null;
+
+    // Walk up the hierarchy to find parent container (OutlineNode)
+    let curr = parentObjectMap?.get(obj.compactId);
+    let depth = 0;
+    while (curr && depth < 6) {
+      const baseJcid = curr.jcid & 0xffff;
+      if (baseJcid === MS_ONE_JCID.OUTLINE_NODE) {
+        outlineAncestor = curr;
+        break;
+      }
+      if (baseJcid === MS_ONE_JCID.OUTLINE_ELEMENT_NODE && !intermediateElement) {
+        intermediateElement = curr;
+      }
+      // Accumulate offsets from intermediate parents
+      const pOffX =
+        (curr.properties.get(MS_ONE_PROP_ID.OFFSET_FROM_CONTAINER_HORIZ)?.data as number) ?? 0;
+      const pOffY =
+        (curr.properties.get(MS_ONE_PROP_ID.OFFSET_FROM_CONTAINER_VERT)?.data as number) ?? 0;
+      accumulatedOffX += pOffX;
+      accumulatedOffY += pOffY;
+
+      curr = parentObjectMap?.get(curr.compactId);
+      depth++;
+    }
+
+    const directX =
       (obj.properties.get(MS_ONE_PROP_ID.LAYOUT_X)?.data as number) ??
-      (obj.properties.get(MS_ONE_PROP_ID.FIXTURE_X)?.data as number) ??
-      PARSER_METRICS_DEFAULTS.DEFAULT_LAYOUT_X;
-    const rawY =
+      (obj.properties.get(MS_ONE_PROP_ID.FIXTURE_X)?.data as number);
+    const directY =
       (obj.properties.get(MS_ONE_PROP_ID.LAYOUT_Y)?.data as number) ??
-      (obj.properties.get(MS_ONE_PROP_ID.FIXTURE_Y)?.data as number) ??
-      PARSER_METRICS_DEFAULTS.DEFAULT_LAYOUT_Y;
-    const rawW =
+      (obj.properties.get(MS_ONE_PROP_ID.FIXTURE_Y)?.data as number);
+
+    let resolvedX: number;
+    let resolvedY: number;
+
+    if (outlineAncestor) {
+      const outX =
+        (outlineAncestor.properties.get(MS_ONE_PROP_ID.LAYOUT_X)?.data as number) ??
+        (outlineAncestor.properties.get(MS_ONE_PROP_ID.FIXTURE_X)?.data as number) ??
+        PARSER_METRICS_DEFAULTS.DEFAULT_LAYOUT_X;
+      const outY =
+        (outlineAncestor.properties.get(MS_ONE_PROP_ID.LAYOUT_Y)?.data as number) ??
+        (outlineAncestor.properties.get(MS_ONE_PROP_ID.FIXTURE_Y)?.data as number) ??
+        PARSER_METRICS_DEFAULTS.DEFAULT_LAYOUT_Y;
+
+      // 1. Resolve Horizontal Coordinate: prioritize direct LAYOUT_X when present
+      if (directX !== undefined) {
+        resolvedX = directX >= outX ? directX + accumulatedOffX : outX + directX + accumulatedOffX;
+      } else {
+        resolvedX = outX + accumulatedOffX;
+      }
+
+      // 2. Resolve Vertical Coordinate: prioritize direct LAYOUT_Y when present
+      if (directY !== undefined) {
+        resolvedY = directY >= outY ? directY + accumulatedOffY : outY + directY + accumulatedOffY;
+      } else if (accumulatedOffY > 0) {
+        resolvedY = outY + accumulatedOffY;
+      } else {
+        // Check if a node or any of its descendants contain text
+        const elementHasText = (node: ParsedObjectNode): boolean => {
+          const base = node.jcid & 0xffff;
+          if (
+            base === MS_ONE_JCID.RICH_TEXT_OE_NODE ||
+            node.properties.has(MS_ONE_PROP_ID.RICH_TEXT_UNICODE) ||
+            node.properties.has(MS_ONE_PROP_ID.RICH_TEXT_ASCII)
+          ) {
+            return true;
+          }
+          if (node.children) {
+            for (const c of node.children) {
+              if (elementHasText(c)) return true;
+            }
+          }
+          return false;
+        };
+
+        // Count preceding elements that actually contain text
+        let precedingTextCount = 0;
+        if (outlineAncestor.children && outlineAncestor.children.length > 0) {
+          for (const child of outlineAncestor.children) {
+            if (intermediateElement && child.compactId === intermediateElement.compactId) {
+              break;
+            }
+            if (elementHasText(child)) {
+              precedingTextCount++;
+            }
+          }
+        }
+
+        // Calibrated OneNote line height: ~14pt per paragraph line (~18.7px) + 3pt padding
+        const textOffset = precedingTextCount > 0 ? precedingTextCount * 14 + 3 : 0;
+        resolvedY = outY + textOffset;
+      }
+    } else {
+      resolvedX = (directX ?? PARSER_METRICS_DEFAULTS.DEFAULT_LAYOUT_X) + accumulatedOffX;
+      resolvedY = (directY ?? PARSER_METRICS_DEFAULTS.DEFAULT_LAYOUT_Y) + accumulatedOffY;
+    }
+
+    const propW =
+      (obj.properties.get(MS_ONE_PROP_ID.PICTURE_WIDTH)?.data as number) ??
       (obj.properties.get(MS_ONE_PROP_ID.IMAGE_WIDTH)?.data as number) ??
       (obj.properties.get(MS_ONE_PROP_ID.LAYOUT_WIDTH)?.data as number) ??
-      (obj.properties.get(MS_ONE_PROP_ID.FIXTURE_BOUNDS_W)?.data as number) ??
-      PARSER_METRICS_DEFAULTS.DEFAULT_IMAGE_WIDTH;
-    const rawH =
+      (obj.properties.get(MS_ONE_PROP_ID.FIXTURE_BOUNDS_W)?.data as number);
+    const propH =
+      (obj.properties.get(MS_ONE_PROP_ID.PICTURE_HEIGHT)?.data as number) ??
       (obj.properties.get(MS_ONE_PROP_ID.IMAGE_HEIGHT)?.data as number) ??
       (obj.properties.get(MS_ONE_PROP_ID.LAYOUT_HEIGHT)?.data as number) ??
-      (obj.properties.get(MS_ONE_PROP_ID.FIXTURE_BOUNDS_H)?.data as number) ??
-      PARSER_METRICS_DEFAULTS.DEFAULT_IMAGE_HEIGHT;
-
-    const xPt = Math.max(0, Math.min(rawX, 50000));
-    const yPt = Math.max(0, Math.min(rawY, 50000));
-    const widthPt = Math.max(20, Math.min(rawW, 50000));
-    const heightPt = Math.max(20, Math.min(rawH, 50000));
+      (obj.properties.get(MS_ONE_PROP_ID.FIXTURE_BOUNDS_H)?.data as number);
 
     let blobData: Uint8Array | undefined;
     let extension = ".png";
@@ -1472,6 +1785,48 @@ export class MsOneDocumentBuilder {
       blobData = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
     }
 
+    let widthPt = propW;
+    let heightPt = propH;
+
+    const natural = this.sniffImageDimensions(blobData);
+    if (natural && natural.width > 0 && natural.height > 0) {
+      const naturalAspect = natural.width / natural.height;
+      if (widthPt && !heightPt) {
+        heightPt = Math.round(widthPt / naturalAspect);
+      } else if (!widthPt && heightPt) {
+        widthPt = Math.round(heightPt * naturalAspect);
+      } else if (!widthPt && !heightPt) {
+        const MAX_IMAGE_PX = 650;
+        let pxW = natural.width;
+        let pxH = natural.height;
+        if (pxW > MAX_IMAGE_PX) {
+          const ratio = MAX_IMAGE_PX / pxW;
+          pxW = MAX_IMAGE_PX;
+          pxH = Math.round(natural.height * ratio);
+        }
+        widthPt = CoordinateMath.pixelsToPoints(pxW);
+        heightPt = CoordinateMath.pixelsToPoints(pxH);
+      } else {
+        const pxW = CoordinateMath.pointsToPixels(widthPt);
+        if (pxW > 650) {
+          const ratio = 650 / pxW;
+          widthPt = CoordinateMath.pixelsToPoints(650);
+          heightPt = heightPt * ratio;
+        }
+      }
+    }
+
+    const xPt = Math.max(0, Math.min(resolvedX, 50000));
+    const yPt = Math.max(0, Math.min(resolvedY, 50000));
+    const finalWidthPt = Math.max(
+      20,
+      Math.min(widthPt || PARSER_METRICS_DEFAULTS.DEFAULT_IMAGE_WIDTH, 50000)
+    );
+    const finalHeightPt = Math.max(
+      20,
+      Math.min(heightPt || PARSER_METRICS_DEFAULTS.DEFAULT_IMAGE_HEIGHT, 50000)
+    );
+
     const assetId = IdGenerator.assetId();
     const mimeType = this.sniffMimeType(blobData);
     const ext = extension.startsWith(".") ? extension : `.${extension}`;
@@ -1483,13 +1838,23 @@ export class MsOneDocumentBuilder {
       data: blobData,
     });
 
+    const hasExplicitCoords =
+      (directX !== undefined && directY !== undefined) ||
+      obj.properties.has(MS_ONE_PROP_ID.LAYOUT_X) ||
+      obj.properties.has(MS_ONE_PROP_ID.LAYOUT_Y) ||
+      obj.properties.has(MS_ONE_PROP_ID.FIXTURE_X);
+
     const imgResult: any = {
       type: "image",
       id: IdGenerator.objectId("img"),
-      bounds: CoordinateMath.normalizeBounds(xPt, yPt, widthPt, heightPt, zIndex),
+      bounds: CoordinateMath.normalizeBounds(xPt, yPt, finalWidthPt, finalHeightPt, zIndex),
       assetId,
       mimeType,
+      hasExplicitCoords,
     };
+    if (outlineAncestor) {
+      imgResult.parentOutlineId = outlineAncestor.compactId;
+    }
     if (containerKey) {
       imgResult.containerKey = containerKey;
     }
@@ -1500,7 +1865,8 @@ export class MsOneDocumentBuilder {
     obj: ParsedObjectNode,
     blobs: Map<number, Uint8Array>,
     zIndex: number,
-    allObjects?: Map<number, ParsedObjectNode>
+    allObjects?: Map<number, ParsedObjectNode>,
+    parentObjectMap?: Map<number, ParsedObjectNode>
   ): CanonicalInkStrokeGroup | null {
     let isfBytes: Uint8Array | undefined;
     let inkColor: string | undefined;
@@ -1623,33 +1989,100 @@ export class MsOneDocumentBuilder {
       }
     }
 
+    // Resolve Origin Coordinates
+    let originXPt =
+      (obj.properties.get(MS_ONE_PROP_ID.LAYOUT_X)?.data as number) ??
+      (obj.properties.get(MS_ONE_PROP_ID.INK_ORIGIN_X)?.data as number) ??
+      (obj.properties.get(MS_ONE_PROP_ID.INK_ORIGIN_X_ALT)?.data as number) ??
+      (obj.properties.get(MS_ONE_PROP_ID.FIXTURE_X)?.data as number);
+    let originYPt =
+      (obj.properties.get(MS_ONE_PROP_ID.LAYOUT_Y)?.data as number) ??
+      (obj.properties.get(MS_ONE_PROP_ID.INK_ORIGIN_Y)?.data as number) ??
+      (obj.properties.get(MS_ONE_PROP_ID.INK_ORIGIN_Y_ALT)?.data as number) ??
+      (obj.properties.get(MS_ONE_PROP_ID.FIXTURE_Y)?.data as number);
+
+    if (originXPt === undefined && parentObjectMap) {
+      let curr = parentObjectMap.get(obj.compactId);
+      let depth = 0;
+      while (curr && depth < 6) {
+        const baseJcid = curr.jcid & 0xffff;
+        if (baseJcid === MS_ONE_JCID.OUTLINE_NODE) {
+          originXPt =
+            (curr.properties.get(MS_ONE_PROP_ID.LAYOUT_X)?.data as number) ??
+            (curr.properties.get(MS_ONE_PROP_ID.FIXTURE_X)?.data as number);
+          originYPt =
+            (curr.properties.get(MS_ONE_PROP_ID.LAYOUT_Y)?.data as number) ??
+            (curr.properties.get(MS_ONE_PROP_ID.FIXTURE_Y)?.data as number);
+          break;
+        }
+        curr = parentObjectMap.get(curr.compactId);
+        depth++;
+      }
+    }
+
     const hasFixtureX = obj.properties.get(MS_ONE_PROP_ID.FIXTURE_X) !== undefined;
-    const boundsX = hasFixtureX
-      ? CoordinateMath.pointsToPixels(obj.properties.get(MS_ONE_PROP_ID.FIXTURE_X)!.data as number)
-      : isFinite(minPtX)
-        ? minPtX
-        : 100;
-    const boundsY = hasFixtureX
-      ? CoordinateMath.pointsToPixels(
-          (obj.properties.get(MS_ONE_PROP_ID.FIXTURE_Y)?.data as number) ?? 100
-        )
-      : isFinite(minPtY)
-        ? minPtY
-        : 100;
-    const boundsWidth = hasFixtureX
-      ? CoordinateMath.pointsToPixels(
-          (obj.properties.get(MS_ONE_PROP_ID.FIXTURE_BOUNDS_W)?.data as number) ?? 200
-        )
-      : isFinite(maxPtX - minPtX) && maxPtX > minPtX
+    const originXPx =
+      originXPt !== undefined ? CoordinateMath.pointsToPixels(originXPt) : undefined;
+    const originYPx =
+      originYPt !== undefined ? CoordinateMath.pointsToPixels(originYPt) : undefined;
+
+    // If container origin is defined and stroke points are local (starting near 0),
+    // shift stroke points to unified scene coordinates
+    if (originXPx !== undefined && originYPx !== undefined && originXPx > 0) {
+      const isLocalCoords = !isFinite(minPtX) || minPtX < originXPx - 20;
+      if (isLocalCoords) {
+        const shiftX = originXPx - (isFinite(minPtX) && minPtX > 0 ? minPtX : 0);
+        const shiftY = originYPx - (isFinite(minPtY) && minPtY > 0 ? minPtY : 0);
+        for (const stroke of isfParsed.strokes) {
+          for (const pt of stroke.points) {
+            (pt as { x: number; y: number }).x += shiftX;
+            (pt as { x: number; y: number }).y += shiftY;
+          }
+        }
+        minPtX = isFinite(minPtX) ? minPtX + shiftX : originXPx;
+        minPtY = isFinite(minPtY) ? minPtY + shiftY : originYPx;
+        maxPtX = isFinite(maxPtX) ? maxPtX + shiftX : originXPx + 200;
+        maxPtY = isFinite(maxPtY) ? maxPtY + shiftY : originYPx + 100;
+      }
+    } else if (hasFixtureX) {
+      const targetX = CoordinateMath.pointsToPixels(
+        obj.properties.get(MS_ONE_PROP_ID.FIXTURE_X)!.data as number
+      );
+      const targetY = CoordinateMath.pointsToPixels(
+        (obj.properties.get(MS_ONE_PROP_ID.FIXTURE_Y)?.data as number) ?? 100
+      );
+      const shiftX = targetX - (isFinite(minPtX) ? minPtX : 0);
+      const shiftY = targetY - (isFinite(minPtY) ? minPtY : 0);
+      for (const stroke of isfParsed.strokes) {
+        for (const pt of stroke.points) {
+          (pt as { x: number; y: number }).x += shiftX;
+          (pt as { x: number; y: number }).y += shiftY;
+        }
+      }
+      minPtX = targetX;
+      minPtY = targetY;
+      maxPtX = isFinite(maxPtX) ? maxPtX + shiftX : targetX + 200;
+      maxPtY = isFinite(maxPtY) ? maxPtY + shiftY : targetY + 100;
+    }
+
+    const boundsX = isFinite(minPtX) ? minPtX : (originXPx ?? 100);
+    const boundsY = isFinite(minPtY) ? minPtY : (originYPx ?? 100);
+    const boundsWidth =
+      isFinite(maxPtX - minPtX) && maxPtX > minPtX
         ? Math.max(1, maxPtX - minPtX)
-        : 200;
-    const boundsHeight = hasFixtureX
-      ? CoordinateMath.pointsToPixels(
-          (obj.properties.get(MS_ONE_PROP_ID.FIXTURE_BOUNDS_H)?.data as number) ?? 100
-        )
-      : isFinite(maxPtY - minPtY) && maxPtY > minPtY
+        : hasFixtureX
+          ? CoordinateMath.pointsToPixels(
+              (obj.properties.get(MS_ONE_PROP_ID.FIXTURE_BOUNDS_W)?.data as number) ?? 200
+            )
+          : 200;
+    const boundsHeight =
+      isFinite(maxPtY - minPtY) && maxPtY > minPtY
         ? Math.max(1, maxPtY - minPtY)
-        : 100;
+        : hasFixtureX
+          ? CoordinateMath.pointsToPixels(
+              (obj.properties.get(MS_ONE_PROP_ID.FIXTURE_BOUNDS_H)?.data as number) ?? 100
+            )
+          : 100;
 
     return {
       type: "ink",

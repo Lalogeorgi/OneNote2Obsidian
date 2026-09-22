@@ -657,11 +657,13 @@ export class SpatialInteractionController {
       const dy = curVy * dt;
 
       curVx *= stepFriction;
-      curVy *= stepFriction;
-
       const current = this.getTransform();
-      const next = ViewportManager.panBy(current, dx, dy);
+      const rawNext = ViewportManager.panBy(current, dx, dy);
+      const next = ViewportManager.clampTopLeftAnchor(rawNext);
       this.callbacks.onViewportChange(next);
+
+      if (next.x >= 0 && curVx > 0) curVx = 0;
+      if (next.y >= 0 && curVy > 0) curVy = 0;
 
       if (Math.hypot(curVx, curVy) > 0.05) {
         this.momentumAnimId = requestAnimationFrame(step);
@@ -997,25 +999,25 @@ export class SpatialInteractionController {
     const rect = this.hostElement.getBoundingClientRect();
     const screenPoint = new Point(e.clientX - rect.left, e.clientY - rect.top);
 
-    if (e.ctrlKey || e.metaKey || this.tool === "select") {
+    if (e.ctrlKey || e.metaKey) {
       const zoomFactor =
         e.deltaY < 0
           ? CANVAS_INTERACTION_METRICS.WHEEL_ZOOM_IN
           : CANVAS_INTERACTION_METRICS.WHEEL_ZOOM_OUT;
       const current = this.getTransform();
-      let next = ViewportManager.zoomAtScreenPoint(current, screenPoint, zoomFactor);
-      if (this.currentScene && zoomFactor < 1) {
-        next = ViewportManager.clampTopLeftAnchor(
-          next,
-          this.currentScene.canvasBounds,
-          rect.width,
-          rect.height
-        );
-      }
+      const next = ViewportManager.clampTopLeftAnchor(
+        ViewportManager.zoomAtScreenPoint(current, screenPoint, zoomFactor)
+      );
+      this.callbacks.onViewportChange(next);
+    } else if (e.shiftKey) {
+      const current = this.getTransform();
+      const next = ViewportManager.clampTopLeftAnchor(ViewportManager.panBy(current, -e.deltaY, 0));
       this.callbacks.onViewportChange(next);
     } else {
       const current = this.getTransform();
-      const next = ViewportManager.panBy(current, -e.deltaX, -e.deltaY);
+      const next = ViewportManager.clampTopLeftAnchor(
+        ViewportManager.panBy(current, -e.deltaX, -e.deltaY)
+      );
       this.callbacks.onViewportChange(next);
     }
   };
@@ -1377,12 +1379,14 @@ export class SpatialInteractionController {
 
       if (this.lastPinchCenterScreen && this.lastPinchDistance > 0) {
         const current = this.getTransform();
-        const next = ViewportManager.pinchTransform(
-          current,
-          this.lastPinchCenterScreen,
-          currentCenter,
-          currentDist,
-          this.lastPinchDistance
+        const next = ViewportManager.clampTopLeftAnchor(
+          ViewportManager.pinchTransform(
+            current,
+            this.lastPinchCenterScreen,
+            currentCenter,
+            currentDist,
+            this.lastPinchDistance
+          )
         );
         this.callbacks.onViewportChange(next);
       }
@@ -1415,7 +1419,7 @@ export class SpatialInteractionController {
         this.recordVelocity(screenPt);
 
         const current = this.getTransform();
-        const next = ViewportManager.panBy(current, dx, dy);
+        const next = ViewportManager.clampTopLeftAnchor(ViewportManager.panBy(current, dx, dy));
         this.callbacks.onViewportChange(next);
         return;
       }
@@ -1432,7 +1436,7 @@ export class SpatialInteractionController {
       this.lastPointerScene = scenePt;
 
       const current = this.getTransform();
-      const next = ViewportManager.panBy(current, dx, dy);
+      const next = ViewportManager.clampTopLeftAnchor(ViewportManager.panBy(current, dx, dy));
       this.callbacks.onViewportChange(next);
       return;
     }

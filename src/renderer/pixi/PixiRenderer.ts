@@ -244,7 +244,6 @@ export class PixiRenderer implements IRenderer {
         {
           onViewportChange: (nextTransform) => {
             this.setViewport(nextTransform);
-            if (this.onViewportChange) this.onViewportChange(nextTransform);
           },
           onSelectionChange: (selectedNodes) => {
             if (this.synchronizer) {
@@ -579,14 +578,15 @@ export class PixiRenderer implements IRenderer {
   }
 
   public setViewport(transform: ViewportTransform): void {
-    this.transform = { ...transform };
+    const clamped = ViewportManager.clampTopLeftAnchor(transform);
+    this.transform = { ...clamped };
     if (this.hierarchy) {
-      this.hierarchy.updateViewport(transform);
+      this.hierarchy.updateViewport(this.transform);
     }
 
     // Synchronize DOM Overlay CSS transform
     if (this.domOverlay) {
-      const matrix = AffineMatrix2D.fromViewport(transform);
+      const matrix = AffineMatrix2D.fromViewport(this.transform);
       this.domOverlay.style.transform = matrix.toCSS();
     }
 
@@ -595,6 +595,9 @@ export class PixiRenderer implements IRenderer {
     }
 
     this.applyFrustumCulling();
+    if (this.onViewportChange) {
+      this.onViewportChange(this.transform);
+    }
   }
 
   /**
@@ -607,7 +610,7 @@ export class PixiRenderer implements IRenderer {
     const height = this.hostElement.clientHeight || CANVAS_VIEWPORT_METRICS.DEFAULT_HOST_HEIGHT;
 
     const fitOptions: ViewportFitOptions = {
-      padding: 48,
+      padding: 0,
       align: "top-left",
       ...options,
     };
@@ -620,7 +623,6 @@ export class PixiRenderer implements IRenderer {
     );
 
     this.setViewport(newTransform);
-    if (this.onViewportChange) this.onViewportChange(newTransform);
   }
 
   /**
@@ -675,21 +677,12 @@ export class PixiRenderer implements IRenderer {
    * Zoom the viewport anchored at a screen point.
    */
   public zoomAt(screenPoint: Point2D, scaleFactor: number, options: ViewportFitOptions = {}): void {
-    let newTransform = ViewportManager.zoomAtScreenPoint(
+    const newTransform = ViewportManager.zoomAtScreenPoint(
       this.transform,
       screenPoint,
       scaleFactor,
       options
     );
-    if (this.currentScene && scaleFactor < 1.0) {
-      newTransform = ViewportManager.clampTopLeftAnchor(
-        newTransform,
-        this.currentScene.canvasBounds,
-        this.hostElement?.clientWidth || CANVAS_VIEWPORT_METRICS.DEFAULT_HOST_WIDTH,
-        this.hostElement?.clientHeight || CANVAS_VIEWPORT_METRICS.DEFAULT_HOST_HEIGHT,
-        options
-      );
-    }
     this.setViewport(newTransform);
     if (this.onViewportChange) this.onViewportChange(newTransform);
   }

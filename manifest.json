@@ -1,7 +1,7 @@
 {
-  "id": "on-to-od",
+  "id": "onenote-spatial",
   "name": "On2Od",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "minAppVersion": "1.7.2",
   "description": "Spatial import and GPU rendering of Microsoft OneNote notebooks using PixiJS. Floating Sticky Note Windows with synchronized Markdown projection.",
   "author": "Lalogeorgi",

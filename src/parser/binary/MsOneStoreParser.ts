@@ -555,10 +555,14 @@ export class MsOneStoreParser {
           if (
             id === 0x1c14 ||
             id === 0x1c15 ||
+            id === 0x1c17 ||
+            id === 0x1c18 ||
             id === 0x1c1b ||
             id === 0x1c1c ||
             id === 0x1c01 ||
             id === 0x1c02 ||
+            id === 0x3419 ||
+            id === 0x341a ||
             id === 0x1c4e ||
             id === 0x1c4f ||
             id === 0x34cd ||

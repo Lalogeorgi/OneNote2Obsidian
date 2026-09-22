@@ -23,7 +23,7 @@ export class ViewportManager {
     _viewportHeight: number,
     options: ViewportFitOptions = {}
   ): ViewportTransform {
-    const padding = options.padding ?? 48;
+    const padding = options.padding ?? 0;
     const minScale = options.minScale ?? this.DEFAULT_MIN_SCALE;
     const maxScale = options.maxScale ?? this.DEFAULT_MAX_SCALE;
 
@@ -37,42 +37,24 @@ export class ViewportManager {
     const x = padding - targetBounds.x * scale;
     const y = padding - targetBounds.y * scale;
 
-    return { x, y, scale };
+    return this.clampTopLeftAnchor({ x, y, scale });
   }
 
   /**
-   * Clamps the viewport transform so that the page content's top-left corner
-   * is anchored cleanly at the top-left of the viewport (padding, padding).
-   * Prevents content from floating down or right into the middle of the screen when zooming out.
+   * Clamps viewport transform to ensure content cannot be scrolled upper than y = 0
+   * or left of x = 0 (authentic Microsoft OneNote page origin and boundary).
    */
   public static clampTopLeftAnchor(
     transform: ViewportTransform,
-    targetBounds: Rect2D,
-    _viewportWidth: number,
-    _viewportHeight: number,
-    options: ViewportFitOptions = {}
+    _targetBounds?: Rect2D,
+    _viewportWidth?: number,
+    _viewportHeight?: number,
+    _options: ViewportFitOptions = {}
   ): ViewportTransform {
-    const padding = options.padding ?? 48;
-    const maxScreenX = padding;
-    const maxScreenY = padding;
-
-    const contentScreenX = targetBounds.x * transform.scale + transform.x;
-    const contentScreenY = targetBounds.y * transform.scale + transform.y;
-
-    let x = transform.x;
-    let y = transform.y;
-
-    if (contentScreenX > maxScreenX) {
-      x = maxScreenX - targetBounds.x * transform.scale;
-    }
-    if (contentScreenY > maxScreenY) {
-      y = maxScreenY - targetBounds.y * transform.scale;
-    }
-
     return {
       ...transform,
-      x,
-      y,
+      x: Math.min(0, transform.x),
+      y: Math.min(0, transform.y),
     };
   }
 
